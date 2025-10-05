@@ -11,9 +11,9 @@ Route::get('dashboard', function () {
     return Inertia::render('Dashboard');
 })->middleware(['auth', 'verified'])->name('dashboard');
 
-// Update this line to point to the settings folder
+// Updated to point to the News/Index component
 Route::get('news', function () {
-    return Inertia::render('News');
+    return Inertia::render('News/Index');
 })->middleware(['auth', 'verified'])->name('news');
 
 require __DIR__.'/settings.php';
