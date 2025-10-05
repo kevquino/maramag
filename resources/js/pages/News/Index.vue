@@ -2,8 +2,9 @@
 import AppLayout from '@/layouts/AppLayout.vue';
 import { news } from '@/routes';
 import { type BreadcrumbItem } from '@/types';
-import { Head } from '@inertiajs/vue3';
+import { Head, router, Link } from '@inertiajs/vue3';
 import { ref, computed } from 'vue';
+
 
 // Define the news article interface
 interface NewsArticle {
@@ -84,12 +85,11 @@ const newsArticles = ref<NewsArticle[]>([
   }
 ]);
 
-// Modal states
-const showCreateModal = ref(false);
+// Modal states - Remove create modal since we're using separate page
 const showEditModal = ref(false);
 const editingArticle = ref<NewsArticle | null>(null);
 
-// Form state for creating/editing news
+// Form state for editing news only
 const newArticle = ref<Partial<NewsArticle>>({
   title: '',
   excerpt: '',
@@ -155,24 +155,8 @@ const pageNumbers = computed(() => {
 
 // Actions
 const createArticle = () => {
-  if (!newArticle.value.title || !newArticle.value.excerpt) return;
-  
-  const article: NewsArticle = {
-    id: Math.max(...newsArticles.value.map(a => a.id)) + 1,
-    title: newArticle.value.title || '',
-    excerpt: newArticle.value.excerpt || '',
-    content: newArticle.value.content || '',
-    publishedAt: new Date().toISOString().split('T')[0],
-    author: newArticle.value.author || 'Admin User',
-    category: newArticle.value.category || 'General',
-    status: newArticle.value.status as 'published' | 'draft' | 'archived',
-    isFeatured: false
-  };
-  
-  newsArticles.value.unshift(article);
-  resetForm();
-  showCreateModal.value = false;
-  currentPage.value = 1;
+  // Use direct URL instead of route helper
+  router.visit('/news/create');
 };
 
 const editArticle = (article: NewsArticle) => {
@@ -240,11 +224,6 @@ const goToPage = (page: number) => {
   if (page >= 1 && page <= totalPages.value) {
     currentPage.value = page;
   }
-};
-
-const openCreateModal = () => {
-  resetForm();
-  showCreateModal.value = true;
 };
 
 const breadcrumbs: BreadcrumbItem[] = [
@@ -327,7 +306,7 @@ const breadcrumbs: BreadcrumbItem[] = [
       <div class="rounded-lg border border-sidebar-border/70 bg-white shadow-sm dark:border-sidebar-border dark:bg-gray-800">
         <div class="p-4">
           <!-- Mobile Filter Toggle -->
-          <div class="flex justify-between items-center mb-4 sm:hidden">
+          <div class="flex justify-between items-center mb-4 lg:hidden">
             <h2 class="text-lg font-semibold text-gray-900 dark:text-white">News Articles</h2>
             <button
               @click="showMobileFilters = !showMobileFilters"
@@ -339,11 +318,11 @@ const breadcrumbs: BreadcrumbItem[] = [
             </button>
           </div>
 
-          <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+          <div class="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4">
             <!-- Search and Filters -->
-            <div class="flex flex-col sm:flex-row gap-3 flex-1 w-full" :class="{ 'hidden sm:flex': !showMobileFilters }">
+            <div class="flex flex-col lg:flex-row gap-3 flex-1 w-full" :class="{ 'hidden lg:flex': !showMobileFilters }">
               <!-- Search -->
-              <div class="relative w-full sm:w-64">
+              <div class="relative w-full lg:w-64">
                 <input
                   v-model="searchQuery"
                   type="text"
@@ -360,7 +339,7 @@ const breadcrumbs: BreadcrumbItem[] = [
               <select
                 v-model="statusFilter"
                 @change="currentPage = 1"
-                class="flex h-10 w-full sm:w-32 rounded-md border border-gray-300 bg-white px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 dark:border-gray-600 dark:bg-gray-700 dark:text-white"
+                class="flex h-10 w-full lg:w-32 rounded-md border border-gray-300 bg-white px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 dark:border-gray-600 dark:bg-gray-700 dark:text-white"
               >
                 <option value="all">All Status</option>
                 <option value="published">Published</option>
@@ -372,7 +351,7 @@ const breadcrumbs: BreadcrumbItem[] = [
               <select
                 v-model="categoryFilter"
                 @change="currentPage = 1"
-                class="flex h-10 w-full sm:w-32 rounded-md border border-gray-300 bg-white px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 dark:border-gray-600 dark:bg-gray-700 dark:text-white"
+                class="flex h-10 w-full lg:w-40 rounded-md border border-gray-300 bg-white px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 dark:border-gray-600 dark:bg-gray-700 dark:text-white"
               >
                 <option value="all">All Categories</option>
                 <option v-for="category in categories" :key="category" :value="category">{{ category }}</option>
@@ -381,8 +360,8 @@ const breadcrumbs: BreadcrumbItem[] = [
 
             <!-- Create Button -->
             <button
-              @click="openCreateModal"
-              class="inline-flex items-center justify-center rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 bg-blue-600 text-white hover:bg-blue-700 h-10 px-4 py-2 w-full sm:w-auto"
+              @click="createArticle"
+              class="inline-flex items-center justify-center rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 bg-blue-600 text-white hover:bg-blue-700 h-10 px-4 py-2 w-full lg:w-auto"
             >
               <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
@@ -393,18 +372,18 @@ const breadcrumbs: BreadcrumbItem[] = [
         </div>
       </div>
 
-      <!-- Data Table - Mobile Friendly -->
+      <!-- Data Table - Responsive Design -->
       <div class="rounded-lg border border-sidebar-border/70 bg-white shadow-sm dark:border-sidebar-border dark:bg-gray-800">
         <div class="p-4 sm:p-6">
-          <div class="mb-4 hidden sm:block">
+          <div class="mb-4 hidden lg:block">
             <h2 class="text-lg font-semibold leading-none tracking-tight text-gray-900 dark:text-white">News Articles</h2>
             <p class="text-sm text-gray-600 dark:text-gray-400 mt-1">
               Showing {{ paginatedArticles.length }} of {{ filteredArticles.length }} articles
             </p>
           </div>
           
-          <!-- Desktop Table -->
-          <div class="hidden sm:block rounded-md border border-gray-200 dark:border-gray-700">
+          <!-- Desktop Table (Large screens only) -->
+          <div class="hidden xl:block rounded-md border border-gray-200 dark:border-gray-700">
             <table class="w-full text-sm">
               <thead>
                 <tr class="border-b border-gray-200 dark:border-gray-700 transition-colors hover:bg-gray-50 dark:hover:bg-gray-700/50">
@@ -529,8 +508,107 @@ const breadcrumbs: BreadcrumbItem[] = [
             </table>
           </div>
 
-          <!-- Mobile Cards -->
-          <div class="sm:hidden space-y-3">
+          <!-- Tablet Cards (Medium screens) -->
+          <div class="hidden lg:block xl:hidden space-y-3">
+            <div 
+              v-for="article in paginatedArticles" 
+              :key="article.id"
+              class="border border-gray-200 rounded-lg p-4 space-y-3 dark:border-gray-700 dark:bg-gray-800"
+            >
+              <div class="flex items-start justify-between">
+                <div class="flex items-center space-x-3 flex-1">
+                  <div class="flex-shrink-0 h-10 w-10 bg-blue-100 rounded-lg flex items-center justify-center dark:bg-blue-900">
+                    <svg class="h-5 w-5 text-blue-600 dark:text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 20H5a2 2 0 01-2-2V6a2 2 0 012-2h10a2 2 0 012 2v1m2 13a2 2 0 01-2-2V7m2 13a2 2 0 002-2V9a2 2 0 00-2-2h-2m-4-3H9M7 16h6M7 8h6v4H7V8z" />
+                    </svg>
+                  </div>
+                  <div class="min-w-0 flex-1">
+                    <h3 class="text-base font-semibold text-gray-900 dark:text-white">{{ article.title }}</h3>
+                    <p class="text-sm text-gray-600 dark:text-gray-400 mt-1 line-clamp-2">{{ article.excerpt }}</p>
+                  </div>
+                </div>
+                <div class="flex items-center space-x-2">
+                  <button
+                    @click="toggleFeatured(article.id)"
+                    :class="article.isFeatured ? 'bg-blue-600 text-white' : 'border border-gray-300 bg-white dark:border-gray-600 dark:bg-gray-700'"
+                    class="inline-flex items-center justify-center rounded-md text-sm font-medium h-8 w-8 p-0"
+                    title="Toggle Featured"
+                  >
+                    <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z" />
+                    </svg>
+                  </button>
+                </div>
+              </div>
+              
+              <div class="flex flex-wrap gap-2">
+                <span class="inline-flex items-center rounded-full border px-2.5 py-1 text-xs font-semibold bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-200">
+                  {{ article.category }}
+                </span>
+                <span 
+                  class="inline-flex items-center rounded-full border px-2.5 py-1 text-xs font-semibold"
+                  :class="{
+                    'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200': article.status === 'published',
+                    'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200': article.status === 'draft',
+                    'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200': article.status === 'archived'
+                  }"
+                >
+                  {{ article.status }}
+                </span>
+                <span v-if="article.isFeatured" class="inline-flex items-center rounded-full border px-2.5 py-1 text-xs font-semibold bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200">
+                  Featured
+                </span>
+              </div>
+              
+              <div class="grid grid-cols-2 gap-4 text-sm text-gray-600 dark:text-gray-400">
+                <div>
+                  <span class="font-medium">Date:</span>
+                  {{ new Date(article.publishedAt).toLocaleDateString() }}
+                </div>
+                <div>
+                  <span class="font-medium">Author:</span>
+                  {{ article.author }}
+                </div>
+              </div>
+              
+              <div class="flex justify-between items-center pt-3 border-t border-gray-200 dark:border-gray-700">
+                <select
+                  :value="article.status"
+                  @change="updateStatus(article.id, ($event.target as HTMLSelectElement).value as any)"
+                  class="flex h-9 text-sm rounded-md border border-gray-300 bg-white px-3 ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 dark:border-gray-600 dark:bg-gray-700 dark:text-white"
+                >
+                  <option value="published">Publish</option>
+                  <option value="draft">Draft</option>
+                  <option value="archived">Archive</option>
+                </select>
+                
+                <div class="flex items-center space-x-2">
+                  <button
+                    @click="editArticle(article)"
+                    class="inline-flex items-center justify-center rounded-md text-sm font-medium border border-gray-300 bg-white hover:bg-gray-50 dark:border-gray-600 dark:bg-gray-700 dark:hover:bg-gray-600 h-9 px-4 text-gray-700 dark:text-gray-300"
+                  >
+                    Edit
+                  </button>
+                  <button
+                    @click="deleteArticle(article.id)"
+                    class="inline-flex items-center justify-center rounded-md text-sm font-medium border border-gray-300 bg-white hover:bg-red-50 dark:border-gray-600 dark:bg-gray-700 dark:hover:bg-red-900/20 h-9 px-4 text-red-600 dark:text-red-400"
+                  >
+                    Delete
+                  </button>
+                </div>
+              </div>
+            </div>
+            
+            <div v-if="paginatedArticles.length === 0" class="text-center py-8 text-gray-500 dark:text-gray-400">
+              <svg class="h-8 w-8 mx-auto mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.172 16.172a4 4 0 015.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+              No articles found matching your criteria.
+            </div>
+          </div>
+
+          <!-- Mobile Cards (Small screens) -->
+          <div class="lg:hidden space-y-3">
             <div 
               v-for="article in paginatedArticles" 
               :key="article.id"
@@ -664,106 +742,7 @@ const breadcrumbs: BreadcrumbItem[] = [
       </div>
     </div>
 
-    <!-- Create News Modal -->
-    <div v-if="showCreateModal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-      <div class="bg-white rounded-lg max-w-md w-full max-h-[90vh] overflow-y-auto shadow-lg dark:bg-gray-800">
-        <div class="p-6">
-          <div class="flex justify-between items-center mb-4">
-            <h2 class="text-lg font-semibold leading-none tracking-tight text-gray-900 dark:text-white">Create New Article</h2>
-            <button @click="showCreateModal = false" class="rounded-sm opacity-70 ring-offset-background transition-opacity hover:opacity-100 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 text-gray-500 dark:text-gray-400">
-              <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
-              </svg>
-            </button>
-          </div>
-          
-          <p class="text-sm text-gray-600 dark:text-gray-400 mb-4">
-            Add a new news article to your website. Click save when you're done.
-          </p>
-          
-          <form @submit.prevent="createArticle" class="space-y-4">
-            <div class="space-y-2">
-              <label for="create-title" class="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 text-gray-700 dark:text-gray-300">Title</label>
-              <input
-                id="create-title"
-                v-model="newArticle.title"
-                type="text"
-                required
-                class="flex h-10 w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-gray-500 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 dark:border-gray-600 dark:bg-gray-700 dark:text-white dark:placeholder:text-gray-400"
-                placeholder="Enter article title"
-              />
-            </div>
-            
-            <div class="space-y-2">
-              <label for="create-excerpt" class="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 text-gray-700 dark:text-gray-300">Excerpt</label>
-              <textarea
-                id="create-excerpt"
-                v-model="newArticle.excerpt"
-                required
-                rows="3"
-                class="flex min-h-[80px] w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm ring-offset-background placeholder:text-gray-500 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 dark:border-gray-600 dark:bg-gray-700 dark:text-white dark:placeholder:text-gray-400"
-                placeholder="Enter article excerpt"
-              />
-            </div>
-            
-            <div class="space-y-2">
-              <label for="create-content" class="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 text-gray-700 dark:text-gray-300">Content</label>
-              <textarea
-                id="create-content"
-                v-model="newArticle.content"
-                rows="5"
-                class="flex min-h-[120px] w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm ring-offset-background placeholder:text-gray-500 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 dark:border-gray-600 dark:bg-gray-700 dark:text-white dark:placeholder:text-gray-400"
-                placeholder="Enter article content"
-              />
-            </div>
-            
-            <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div class="space-y-2">
-                <label for="create-category" class="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 text-gray-700 dark:text-gray-300">Category</label>
-                <input
-                  id="create-category"
-                  v-model="newArticle.category"
-                  type="text"
-                  required
-                  class="flex h-10 w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-gray-500 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 dark:border-gray-600 dark:bg-gray-700 dark:text-white dark:placeholder:text-gray-400"
-                  placeholder="Category"
-                />
-              </div>
-              
-              <div class="space-y-2">
-                <label for="create-status" class="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 text-gray-700 dark:text-gray-300">Status</label>
-                <select
-                  id="create-status"
-                  v-model="newArticle.status"
-                  class="flex h-10 w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 dark:border-gray-600 dark:bg-gray-700 dark:text-white"
-                >
-                  <option value="draft">Draft</option>
-                  <option value="published">Published</option>
-                </select>
-              </div>
-            </div>
-            
-            <div class="flex flex-col sm:flex-row justify-end gap-3 pt-4">
-              <button
-                type="button"
-                @click="showCreateModal = false"
-                class="inline-flex items-center justify-center rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 border border-gray-300 bg-white hover:bg-gray-50 dark:border-gray-600 dark:bg-gray-700 dark:hover:bg-gray-600 h-10 px-4 py-2 text-gray-700 dark:text-gray-300 order-2 sm:order-1"
-              >
-                Cancel
-              </button>
-              <button
-                type="submit"
-                class="inline-flex items-center justify-center rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 bg-blue-600 text-white hover:bg-blue-700 h-10 px-4 py-2 order-1 sm:order-2"
-              >
-                Create Article
-              </button>
-            </div>
-          </form>
-        </div>
-      </div>
-    </div>
-
-    <!-- Edit News Modal -->
+    <!-- Edit News Modal (Keep only edit modal) -->
     <div v-if="showEditModal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
       <div class="bg-white rounded-lg max-w-md w-full max-h-[90vh] overflow-y-auto shadow-lg dark:bg-gray-800">
         <div class="p-6">
