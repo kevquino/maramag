@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import AppLayout from '@/layouts/AppLayout.vue';
+import { dashboard } from '@/routes';
 import { type BreadcrumbItem } from '@/types';
 import type {
   ColumnDef,
@@ -15,9 +16,9 @@ import {
   getSortedRowModel,
   useVueTable,
 } from "@tanstack/vue-table"
-import { ArrowUpDown, ChevronDown, MoreHorizontal, Eye, Edit, Archive, Trash2, Star } from "lucide-vue-next"
-import { h, ref, onMounted, computed } from "vue"
-import { router } from '@inertiajs/vue3'
+import { ArrowUpDown, ChevronDown, MoreHorizontal, Eye, Edit, Archive, Trash2, Star, AlertCircle, CheckCircle } from "lucide-vue-next"
+import { h, ref, onMounted, computed, watch } from "vue"
+import { router, Head } from '@inertiajs/vue3'
 
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
@@ -40,6 +41,17 @@ import {
   TableRow,
 } from "@/components/ui/table"
 import { Badge } from "@/components/ui/badge"
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog"
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 
 // Utility function to handle value updates
 function valueUpdater<T>(updaterOrValue: T | ((old: T) => T), ref: { value: T }) {
@@ -51,6 +63,10 @@ function valueUpdater<T>(updaterOrValue: T | ((old: T) => T), ref: { value: T })
 }
 
 const breadcrumbs: BreadcrumbItem[] = [
+  {
+    title: 'Dashboard',
+    href: dashboard().url,
+  },
   {
     title: 'News Management',
     href: '/news',
@@ -83,9 +99,36 @@ const data = ref<News[]>([])
 const loading = ref(true)
 const total = ref(0)
 const currentPage = ref(1)
-const pageSize = ref(5) // Changed from 10 to 5
+const pageSize = ref(5)
 const error = ref<string | null>(null)
 const searchQuery = ref('')
+const successMessage = ref<string | null>(null)
+
+// Delete dialog state
+const deleteDialogOpen = ref(false)
+const newsToDelete = ref<News | null>(null)
+const deleting = ref(false)
+
+// Alert visibility
+const showAlert = ref(false)
+const alertType = ref<'success' | 'error'>('success')
+const alertMessage = ref('')
+
+// Show alert function
+const showAlertMessage = (type: 'success' | 'error', message: string) => {
+  alertType.value = type
+  alertMessage.value = message
+  showAlert.value = true
+  setTimeout(() => {
+    showAlert.value = false
+  }, 5000)
+}
+
+// Get CSRF token
+const getCsrfToken = (): string => {
+  const token = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content')
+  return token || ''
+}
 
 // Fetch news data from backend
 const fetchNews = async (page = 1, search = '') => {
@@ -114,7 +157,9 @@ const fetchNews = async (page = 1, search = '') => {
     
   } catch (err) {
     console.error('Failed to fetch news:', err)
-    error.value = err instanceof Error ? err.message : 'Failed to load news articles'
+    const errorMsg = err instanceof Error ? err.message : 'Failed to load news articles'
+    error.value = errorMsg
+    showAlertMessage('error', errorMsg)
     data.value = []
   } finally {
     loading.value = false
@@ -125,6 +170,103 @@ const fetchNews = async (page = 1, search = '') => {
 onMounted(() => {
   fetchNews()
 })
+
+// Delete news article
+const deleteNews = async () => {
+  if (!newsToDelete.value) return
+
+  deleting.value = true
+  try {
+    const response = await fetch(`/news/${newsToDelete.value.id}`, {
+      method: 'DELETE',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-CSRF-TOKEN': getCsrfToken(),
+        'Accept': 'application/json',
+        'X-Requested-With': 'XMLHttpRequest'
+      }
+    })
+
+    if (response.ok) {
+      showAlertMessage('success', 'Article deleted successfully!')
+      await fetchNews(currentPage.value, searchQuery.value)
+    } else {
+      const errorData = await response.json().catch(() => ({}))
+      throw new Error(errorData.message || `Failed to delete article: ${response.status}`)
+    }
+  } catch (err) {
+    console.error('Failed to delete article:', err)
+    const errorMsg = err instanceof Error ? err.message : 'Failed to delete article'
+    showAlertMessage('error', errorMsg)
+  } finally {
+    deleting.value = false
+    deleteDialogOpen.value = false
+    newsToDelete.value = null
+  }
+}
+
+// Open delete confirmation dialog
+const openDeleteDialog = (news: News) => {
+  newsToDelete.value = news
+  deleteDialogOpen.value = true
+}
+
+// Status change handler
+const handleStatusChange = async (news: News, newStatus: string) => {
+  try {
+    const response = await fetch(`/news/${news.id}/status`, {
+      method: 'PATCH',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-CSRF-TOKEN': getCsrfToken(),
+        'Accept': 'application/json',
+        'X-Requested-With': 'XMLHttpRequest'
+      },
+      body: JSON.stringify({ status: newStatus })
+    })
+    
+    if (response.ok) {
+      const result = await response.json()
+      showAlertMessage('success', result.success || 'Status updated successfully!')
+      await fetchNews(currentPage.value, searchQuery.value)
+    } else {
+      const errorData = await response.json().catch(() => ({}))
+      throw new Error(errorData.message || `Failed to update status: ${response.status}`)
+    }
+  } catch (err) {
+    console.error('Failed to update status:', err)
+    const errorMsg = err instanceof Error ? err.message : 'Failed to update status'
+    showAlertMessage('error', errorMsg)
+  }
+}
+
+// Feature toggle handler
+const handleFeatureToggle = async (news: News) => {
+  try {
+    const response = await fetch(`/news/${news.id}/feature`, {
+      method: 'PATCH',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-CSRF-TOKEN': getCsrfToken(),
+        'Accept': 'application/json',
+        'X-Requested-With': 'XMLHttpRequest'
+      }
+    })
+    
+    if (response.ok) {
+      const result = await response.json()
+      showAlertMessage('success', result.success || 'Feature status updated!')
+      await fetchNews(currentPage.value, searchQuery.value)
+    } else {
+      const errorData = await response.json().catch(() => ({}))
+      throw new Error(errorData.message || `Failed to toggle feature: ${response.status}`)
+    }
+  } catch (err) {
+    console.error('Failed to toggle feature:', err)
+    const errorMsg = err instanceof Error ? err.message : 'Failed to toggle feature'
+    showAlertMessage('error', errorMsg)
+  }
+}
 
 const columns: ColumnDef<News>[] = [
   {
@@ -216,62 +358,6 @@ const columns: ColumnDef<News>[] = [
         router.visit(`/news/${news.id}/edit`)
       }
 
-      const handleStatusChange = async (newStatus: string) => {
-        try {
-          const response = await fetch(`/news/${news.id}/status`, {
-            method: 'PATCH',
-            headers: {
-              'Content-Type': 'application/json',
-              'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || ''
-            },
-            body: JSON.stringify({ status: newStatus })
-          })
-          
-          if (response.ok) {
-            await fetchNews(currentPage.value, searchQuery.value)
-          }
-        } catch (error) {
-          console.error('Failed to update status:', error)
-        }
-      }
-
-      const handleFeatureToggle = async () => {
-        try {
-          const response = await fetch(`/news/${news.id}/feature`, {
-            method: 'PATCH',
-            headers: {
-              'Content-Type': 'application/json',
-              'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || ''
-            }
-          })
-          
-          if (response.ok) {
-            await fetchNews(currentPage.value, searchQuery.value)
-          }
-        } catch (error) {
-          console.error('Failed to toggle feature:', error)
-        }
-      }
-
-      const handleDelete = async () => {
-        if (confirm('Are you sure you want to delete this article? This action cannot be undone.')) {
-          try {
-            const response = await fetch(`/news/${news.id}`, {
-              method: 'DELETE',
-              headers: {
-                'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || ''
-              }
-            })
-            
-            if (response.ok) {
-              await fetchNews(currentPage.value, searchQuery.value)
-            }
-          } catch (error) {
-            console.error('Failed to delete article:', error)
-          }
-        }
-      }
-
       return h(DropdownMenu, {}, [
         h(DropdownMenuTrigger, { asChild: true }, [
           h(Button, {
@@ -300,7 +386,7 @@ const columns: ColumnDef<News>[] = [
           ]),
           h(DropdownMenuSeparator),
           h(DropdownMenuItem, {
-            onClick: handleFeatureToggle,
+            onClick: () => handleFeatureToggle(news),
             class: "flex items-center space-x-2 cursor-pointer"
           }, [
             h(Star, { class: `h-4 w-4 ${news.is_featured ? 'text-yellow-500 fill-yellow-500' : ''}` }),
@@ -308,14 +394,14 @@ const columns: ColumnDef<News>[] = [
           ]),
           h(DropdownMenuSeparator),
           h(DropdownMenuItem, {
-            onClick: () => handleStatusChange(news.status === 'published' ? 'draft' : 'published'),
+            onClick: () => handleStatusChange(news, news.status === 'published' ? 'draft' : 'published'),
             class: `flex items-center space-x-2 cursor-pointer ${news.status === 'published' ? 'text-orange-600' : 'text-green-600'}`
           }, [
             h(Archive, { class: "h-4 w-4" }),
             h("span", news.status === 'published' ? "Unpublish" : "Publish")
           ]),
           h(DropdownMenuItem, {
-            onClick: () => handleStatusChange('archived'),
+            onClick: () => handleStatusChange(news, 'archived'),
             class: "flex items-center space-x-2 cursor-pointer text-blue-600"
           }, [
             h(Archive, { class: "h-4 w-4" }),
@@ -323,7 +409,7 @@ const columns: ColumnDef<News>[] = [
           ]),
           h(DropdownMenuSeparator),
           h(DropdownMenuItem, {
-            onClick: handleDelete,
+            onClick: () => openDeleteDialog(news),
             class: "flex items-center space-x-2 cursor-pointer text-destructive"
           }, [
             h(Trash2, { class: "h-4 w-4" }),
@@ -386,7 +472,6 @@ const handleCreate = () => {
 }
 
 // Update table when data changes
-import { watch } from 'vue'
 watch(tableData, () => {
   table.setOptions(prev => ({
     ...prev,
@@ -399,8 +484,22 @@ watch(tableData, () => {
   <Head title="News Management" />
 
   <AppLayout :breadcrumbs="breadcrumbs">
-    <div class="w-full p-6">
-      <div class="flex items-center justify-between mb-6">
+    <div class="flex h-full flex-1 flex-col gap-4 overflow-x-auto rounded-xl p-4">
+      <!-- Success/Error Alert -->
+      <div v-if="showAlert" class="mb-4">
+        <Alert :class="alertType === 'success' ? 'bg-green-50 border-green-200' : 'bg-red-50 border-red-200'">
+          <CheckCircle v-if="alertType === 'success'" class="h-4 w-4 text-green-600" />
+          <AlertCircle v-else class="h-4 w-4 text-red-600" />
+          <AlertTitle :class="alertType === 'success' ? 'text-green-800' : 'text-red-800'">
+            {{ alertType === 'success' ? 'Success' : 'Error' }}
+          </AlertTitle>
+          <AlertDescription :class="alertType === 'success' ? 'text-green-700' : 'text-red-700'">
+            {{ alertMessage }}
+          </AlertDescription>
+        </Alert>
+      </div>
+
+      <div class="flex items-center justify-between">
         <div>
           <h1 class="text-2xl font-bold text-foreground">News Management</h1>
           <p class="text-muted-foreground">Manage your news articles and publications</p>
@@ -412,7 +511,7 @@ watch(tableData, () => {
       </div>
 
       <!-- Error message -->
-      <div v-if="error" class="mb-4 p-4 bg-destructive/15 border border-destructive/50 text-destructive rounded-lg">
+      <div v-if="error && !showAlert" class="p-4 bg-destructive/15 border border-destructive/50 text-destructive rounded-lg">
         <strong>Error:</strong> {{ error }}
       </div>
 
@@ -441,11 +540,11 @@ watch(tableData, () => {
                 }"
               >
                 {{ column.id === 'title' ? 'Title' : 
-                   column.id === 'category' ? 'Category' : 
-                   column.id === 'status' ? 'Status' : 
-                   column.id === 'author.name' ? 'Author' : 
-                   column.id === 'published_at' ? 'Published Date' : 
-                   column.id === 'created_at' ? 'Created Date' : column.id }}
+                    column.id === 'category' ? 'Category' : 
+                    column.id === 'status' ? 'Status' : 
+                    column.id === 'author.name' ? 'Author' : 
+                    column.id === 'published_at' ? 'Published Date' : 
+                    column.id === 'created_at' ? 'Created Date' : column.id }}
               </DropdownMenuCheckboxItem>
             </DropdownMenuContent>
           </DropdownMenu>
@@ -529,5 +628,32 @@ watch(tableData, () => {
         </div>
       </div>
     </div>
+
+    <!-- Delete Confirmation Dialog -->
+    <AlertDialog v-model:open="deleteDialogOpen">
+      <AlertDialogContent>
+        <AlertDialogHeader>
+          <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
+          <AlertDialogDescription>
+            This action cannot be undone. This will permanently delete the news article
+            "{{ newsToDelete?.title }}" and remove it from our servers.
+          </AlertDialogDescription>
+        </AlertDialogHeader>
+        <AlertDialogFooter>
+          <AlertDialogCancel :disabled="deleting" @click="deleteDialogOpen = false">Cancel</AlertDialogCancel>
+          <AlertDialogAction 
+            @click="deleteNews"
+            class="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            :disabled="deleting"
+          >
+            <div v-if="deleting" class="flex items-center space-x-2">
+              <div class="animate-spin rounded-full h-3 w-3 border-b-2 border-white"></div>
+              <span>Deleting...</span>
+            </div>
+            <span v-else>Delete Article</span>
+          </AlertDialogAction>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
   </AppLayout>
 </template>
