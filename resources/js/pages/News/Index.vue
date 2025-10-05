@@ -5,7 +5,6 @@ import { type BreadcrumbItem } from '@/types';
 import { Head, router, Link } from '@inertiajs/vue3';
 import { ref, computed } from 'vue';
 
-
 // Define the news article interface
 interface NewsArticle {
   id: number;
@@ -85,19 +84,9 @@ const newsArticles = ref<NewsArticle[]>([
   }
 ]);
 
-// Modal states - Remove create modal since we're using separate page
-const showEditModal = ref(false);
-const editingArticle = ref<NewsArticle | null>(null);
-
-// Form state for editing news only
-const newArticle = ref<Partial<NewsArticle>>({
-  title: '',
-  excerpt: '',
-  content: '',
-  category: '',
-  status: 'draft',
-  author: 'Admin User'
-});
+// Delete modal state
+const showDeleteModal = ref(false);
+const articleToDelete = ref<NewsArticle | null>(null);
 
 // Search and filter states
 const searchQuery = ref('');
@@ -155,42 +144,35 @@ const pageNumbers = computed(() => {
 
 // Actions
 const createArticle = () => {
-  // Use direct URL instead of route helper
   router.visit('/news/create');
 };
 
-const editArticle = (article: NewsArticle) => {
-  editingArticle.value = { ...article };
-  newArticle.value = { ...article };
-  showEditModal.value = true;
+const showArticle = (id: number) => {
+  router.visit(`/news/${id}`);
 };
 
-const updateArticle = () => {
-  if (!editingArticle.value || !newArticle.value.title || !newArticle.value.excerpt) return;
-  
-  const index = newsArticles.value.findIndex(a => a.id === editingArticle.value!.id);
-  if (index !== -1) {
-    newsArticles.value[index] = {
-      ...newsArticles.value[index],
-      title: newArticle.value.title || '',
-      excerpt: newArticle.value.excerpt || '',
-      content: newArticle.value.content || '',
-      category: newArticle.value.category || '',
-      status: newArticle.value.status as 'published' | 'draft' | 'archived'
-    };
-  }
-  
-  resetForm();
-  showEditModal.value = false;
-  editingArticle.value = null;
+const editArticle = (id: number) => {
+  router.visit(`/news/${id}/edit`);
 };
 
-const deleteArticle = (id: number) => {
-  if (confirm('Are you sure you want to delete this article?')) {
+const openDeleteModal = (article: NewsArticle) => {
+  articleToDelete.value = article;
+  showDeleteModal.value = true;
+};
+
+const closeDeleteModal = () => {
+  showDeleteModal.value = false;
+  articleToDelete.value = null;
+};
+
+const confirmDelete = () => {
+  if (articleToDelete.value) {
+    const id = articleToDelete.value.id;
     newsArticles.value = newsArticles.value.filter(article => article.id !== id);
     if (paginatedArticles.value.length === 0 && currentPage.value > 1) {
       currentPage.value--;
     }
+    closeDeleteModal();
   }
 };
 
@@ -206,18 +188,6 @@ const updateStatus = (id: number, status: 'published' | 'draft' | 'archived') =>
   if (article) {
     article.status = status;
   }
-};
-
-const resetForm = () => {
-  newArticle.value = {
-    title: '',
-    excerpt: '',
-    content: '',
-    category: '',
-    status: 'draft',
-    author: 'Admin User'
-  };
-  editingArticle.value = null;
 };
 
 const goToPage = (page: number) => {
@@ -392,7 +362,7 @@ const breadcrumbs: BreadcrumbItem[] = [
                   <th class="h-12 px-4 text-left align-middle font-medium text-gray-600 dark:text-gray-400">Status</th>
                   <th class="h-12 px-4 text-left align-middle font-medium text-gray-600 dark:text-gray-400">Date</th>
                   <th class="h-12 px-4 text-left align-middle font-medium text-gray-600 dark:text-gray-400">Author</th>
-                  <th class="h-12 px-4 text-left align-middle font-medium text-gray-600 dark:text-gray-400 w-[140px]">Actions</th>
+                  <th class="h-12 px-4 text-left align-middle font-medium text-gray-600 dark:text-gray-400 w-[160px]">Actions</th>
                 </tr>
               </thead>
               <tbody>
@@ -451,6 +421,19 @@ const breadcrumbs: BreadcrumbItem[] = [
                   </td>
                   <td class="p-4 align-middle">
                     <div class="flex items-center space-x-1">
+                      <!-- View Button -->
+                      <Link
+                        :href="`/news/${article.id}`"
+                        class="inline-flex items-center justify-center rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 border border-gray-300 bg-white hover:bg-gray-50 dark:border-gray-600 dark:bg-gray-700 dark:hover:bg-gray-600 h-8 w-8 p-0 text-blue-600 dark:text-blue-400"
+                        title="View"
+                      >
+                        <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                        </svg>
+                      </Link>
+
+                      <!-- Featured Toggle -->
                       <button
                         @click="toggleFeatured(article.id)"
                         :class="article.isFeatured ? 'bg-blue-600 text-white hover:bg-blue-700' : 'border border-gray-300 bg-white hover:bg-gray-50 dark:border-gray-600 dark:bg-gray-700 dark:hover:bg-gray-600'"
@@ -462,16 +445,18 @@ const breadcrumbs: BreadcrumbItem[] = [
                         </svg>
                       </button>
                       
-                      <button
-                        @click="editArticle(article)"
+                      <!-- Edit Button -->
+                      <Link
+                        :href="`/news/${article.id}/edit`"
                         class="inline-flex items-center justify-center rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 border border-gray-300 bg-white hover:bg-gray-50 dark:border-gray-600 dark:bg-gray-700 dark:hover:bg-gray-600 h-8 w-8 p-0"
                         title="Edit"
                       >
                         <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
                         </svg>
-                      </button>
+                      </Link>
 
+                      <!-- Status Select -->
                       <select
                         :value="article.status"
                         @change="updateStatus(article.id, ($event.target as HTMLSelectElement).value as any)"
@@ -482,8 +467,9 @@ const breadcrumbs: BreadcrumbItem[] = [
                         <option value="archived">Archive</option>
                       </select>
                       
+                      <!-- Delete Button -->
                       <button
-                        @click="deleteArticle(article.id)"
+                        @click="openDeleteModal(article)"
                         class="inline-flex items-center justify-center rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 border border-gray-300 bg-white hover:bg-red-50 dark:border-gray-600 dark:bg-gray-700 dark:hover:bg-red-900/20 h-8 w-8 p-0 text-red-600 dark:text-red-400 hover:text-red-700 dark:hover:text-red-300"
                         title="Delete"
                       >
@@ -583,14 +569,20 @@ const breadcrumbs: BreadcrumbItem[] = [
                 </select>
                 
                 <div class="flex items-center space-x-2">
-                  <button
-                    @click="editArticle(article)"
+                  <Link
+                    :href="`/news/${article.id}`"
+                    class="inline-flex items-center justify-center rounded-md text-sm font-medium border border-gray-300 bg-white hover:bg-gray-50 dark:border-gray-600 dark:bg-gray-700 dark:hover:bg-gray-600 h-9 px-4 text-blue-600 dark:text-blue-400"
+                  >
+                    View
+                  </Link>
+                  <Link
+                    :href="`/news/${article.id}/edit`"
                     class="inline-flex items-center justify-center rounded-md text-sm font-medium border border-gray-300 bg-white hover:bg-gray-50 dark:border-gray-600 dark:bg-gray-700 dark:hover:bg-gray-600 h-9 px-4 text-gray-700 dark:text-gray-300"
                   >
                     Edit
-                  </button>
+                  </Link>
                   <button
-                    @click="deleteArticle(article.id)"
+                    @click="openDeleteModal(article)"
                     class="inline-flex items-center justify-center rounded-md text-sm font-medium border border-gray-300 bg-white hover:bg-red-50 dark:border-gray-600 dark:bg-gray-700 dark:hover:bg-red-900/20 h-9 px-4 text-red-600 dark:text-red-400"
                   >
                     Delete
@@ -675,14 +667,20 @@ const breadcrumbs: BreadcrumbItem[] = [
                 </select>
                 
                 <div class="flex items-center space-x-2">
-                  <button
-                    @click="editArticle(article)"
+                  <Link
+                    :href="`/news/${article.id}`"
+                    class="inline-flex items-center justify-center rounded-md text-xs font-medium border border-gray-300 bg-white hover:bg-gray-50 dark:border-gray-600 dark:bg-gray-700 dark:hover:bg-gray-600 h-7 px-3 text-blue-600 dark:text-blue-400"
+                  >
+                    View
+                  </Link>
+                  <Link
+                    :href="`/news/${article.id}/edit`"
                     class="inline-flex items-center justify-center rounded-md text-xs font-medium border border-gray-300 bg-white hover:bg-gray-50 dark:border-gray-600 dark:bg-gray-700 dark:hover:bg-gray-600 h-7 px-3 text-gray-700 dark:text-gray-300"
                   >
                     Edit
-                  </button>
+                  </Link>
                   <button
-                    @click="deleteArticle(article.id)"
+                    @click="openDeleteModal(article)"
                     class="inline-flex items-center justify-center rounded-md text-xs font-medium border border-gray-300 bg-white hover:bg-red-50 dark:border-gray-600 dark:bg-gray-700 dark:hover:bg-red-900/20 h-7 px-3 text-red-600 dark:text-red-400"
                   >
                     Delete
@@ -742,102 +740,87 @@ const breadcrumbs: BreadcrumbItem[] = [
       </div>
     </div>
 
-    <!-- Edit News Modal (Keep only edit modal) -->
-    <div v-if="showEditModal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-      <div class="bg-white rounded-lg max-w-md w-full max-h-[90vh] overflow-y-auto shadow-lg dark:bg-gray-800">
+    <!-- Delete Confirmation Modal -->
+    <div 
+      v-if="showDeleteModal" 
+      class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm transition-opacity"
+      @click="closeDeleteModal"
+    >
+      <div 
+        class="bg-white rounded-lg max-w-md w-full mx-auto shadow-xl dark:bg-gray-800 transform transition-all"
+        @click.stop
+      >
         <div class="p-6">
-          <div class="flex justify-between items-center mb-4">
-            <h2 class="text-lg font-semibold leading-none tracking-tight text-gray-900 dark:text-white">Edit Article</h2>
-            <button @click="showEditModal = false" class="rounded-sm opacity-70 ring-offset-background transition-opacity hover:opacity-100 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 text-gray-500 dark:text-gray-400">
-              <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
-              </svg>
-            </button>
+          <!-- Warning Icon -->
+          <div class="flex items-center justify-center w-12 h-12 mx-auto mb-4 bg-red-100 rounded-full dark:bg-red-900">
+            <svg class="w-6 h-6 text-red-600 dark:text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L4.35 16.5c-.77.833.192 2.5 1.732 2.5z" />
+            </svg>
           </div>
-          
-          <p class="text-sm text-gray-600 dark:text-gray-400 mb-4">
-            Edit the news article. Click save when you're done.
-          </p>
-          
-          <form @submit.prevent="updateArticle" class="space-y-4">
-            <div class="space-y-2">
-              <label for="edit-title" class="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 text-gray-700 dark:text-gray-300">Title</label>
-              <input
-                id="edit-title"
-                v-model="newArticle.title"
-                type="text"
-                required
-                class="flex h-10 w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-gray-500 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 dark:border-gray-600 dark:bg-gray-700 dark:text-white dark:placeholder:text-gray-400"
-                placeholder="Enter article title"
-              />
-            </div>
-            
-            <div class="space-y-2">
-              <label for="edit-excerpt" class="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 text-gray-700 dark:text-gray-300">Excerpt</label>
-              <textarea
-                id="edit-excerpt"
-                v-model="newArticle.excerpt"
-                required
-                rows="3"
-                class="flex min-h-[80px] w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm ring-offset-background placeholder:text-gray-500 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 dark:border-gray-600 dark:bg-gray-700 dark:text-white dark:placeholder:text-gray-400"
-                placeholder="Enter article excerpt"
-              />
-            </div>
-            
-            <div class="space-y-2">
-              <label for="edit-content" class="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 text-gray-700 dark:text-gray-300">Content</label>
-              <textarea
-                id="edit-content"
-                v-model="newArticle.content"
-                rows="5"
-                class="flex min-h-[120px] w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm ring-offset-background placeholder:text-gray-500 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 dark:border-gray-600 dark:bg-gray-700 dark:text-white dark:placeholder:text-gray-400"
-                placeholder="Enter article content"
-              />
-            </div>
-            
-            <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div class="space-y-2">
-                <label for="edit-category" class="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 text-gray-700 dark:text-gray-300">Category</label>
-                <input
-                  id="edit-category"
-                  v-model="newArticle.category"
-                  type="text"
-                  required
-                  class="flex h-10 w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-gray-500 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 dark:border-gray-600 dark:bg-gray-700 dark:text-white dark:placeholder:text-gray-400"
-                  placeholder="Category"
-                />
+
+          <!-- Modal Content -->
+          <div class="text-center">
+            <h3 class="text-lg font-semibold text-gray-900 dark:text-white mb-2">
+              Delete Article
+            </h3>
+            <p class="text-sm text-gray-600 dark:text-gray-400 mb-6">
+              Are you sure you want to delete 
+              <span class="font-medium text-gray-900 dark:text-white">"{{ articleToDelete?.title }}"</span>? 
+              This action cannot be undone.
+            </p>
+
+            <!-- Article Preview -->
+            <div class="bg-gray-50 dark:bg-gray-700 rounded-lg p-4 mb-6 text-left">
+              <div class="flex items-center space-x-3">
+                <div class="flex-shrink-0 h-8 w-8 bg-blue-100 rounded-lg flex items-center justify-center dark:bg-blue-900">
+                  <svg class="h-4 w-4 text-blue-600 dark:text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 20H5a2 2 0 01-2-2V6a2 2 0 012-2h10a2 2 0 012 2v1m2 13a2 2 0 01-2-2V7m2 13a2 2 0 002-2V9a2 2 0 00-2-2h-2m-4-3H9M7 16h6M7 8h6v4H7V8z" />
+                  </svg>
+                </div>
+                <div class="min-w-0 flex-1">
+                  <p class="text-sm font-medium text-gray-900 dark:text-white truncate">
+                    {{ articleToDelete?.title }}
+                  </p>
+                  <p class="text-xs text-gray-500 dark:text-gray-400 truncate">
+                    {{ articleToDelete?.excerpt }}
+                  </p>
+                </div>
               </div>
-              
-              <div class="space-y-2">
-                <label for="edit-status" class="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 text-gray-700 dark:text-gray-300">Status</label>
-                <select
-                  id="edit-status"
-                  v-model="newArticle.status"
-                  class="flex h-10 w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 dark:border-gray-600 dark:bg-gray-700 dark:text-white"
-                >
-                  <option value="draft">Draft</option>
-                  <option value="published">Published</option>
-                  <option value="archived">Archived</option>
-                </select>
+              <div class="flex items-center justify-between mt-3 text-xs text-gray-500 dark:text-gray-400">
+                <span class="inline-flex items-center">
+                  <svg class="w-3 h-3 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                  </svg>
+                  {{ articleToDelete?.author }}
+                </span>
+                <span class="inline-flex items-center">
+                  <svg class="w-3 h-3 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                  </svg>
+                  {{ articleToDelete ? new Date(articleToDelete.publishedAt).toLocaleDateString() : '' }}
+                </span>
               </div>
             </div>
-            
-            <div class="flex flex-col sm:flex-row justify-end gap-3 pt-4">
+
+            <!-- Action Buttons -->
+            <div class="flex flex-col sm:flex-row gap-3 justify-center">
               <button
-                type="button"
-                @click="showEditModal = false"
-                class="inline-flex items-center justify-center rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 border border-gray-300 bg-white hover:bg-gray-50 dark:border-gray-600 dark:bg-gray-700 dark:hover:bg-gray-600 h-10 px-4 py-2 text-gray-700 dark:text-gray-300 order-2 sm:order-1"
+                @click="closeDeleteModal"
+                class="inline-flex items-center justify-center rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 border border-gray-300 bg-white hover:bg-gray-50 dark:border-gray-600 dark:bg-gray-700 dark:hover:bg-gray-600 h-10 px-4 py-2 text-gray-700 dark:text-gray-300 flex-1 sm:flex-none"
               >
                 Cancel
               </button>
               <button
-                type="submit"
-                class="inline-flex items-center justify-center rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 bg-blue-600 text-white hover:bg-blue-700 h-10 px-4 py-2 order-1 sm:order-2"
+                @click="confirmDelete"
+                class="inline-flex items-center justify-center rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 bg-red-600 text-white hover:bg-red-700 h-10 px-4 py-2 flex-1 sm:flex-none"
               >
-                Update Article
+                <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                </svg>
+                Delete Article
               </button>
             </div>
-          </form>
+          </div>
         </div>
       </div>
     </div>
@@ -850,5 +833,11 @@ const breadcrumbs: BreadcrumbItem[] = [
   -webkit-line-clamp: 2;
   -webkit-box-orient: vertical;
   overflow: hidden;
+}
+
+/* Smooth backdrop blur transition */
+.backdrop-blur-sm {
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
 }
 </style>
