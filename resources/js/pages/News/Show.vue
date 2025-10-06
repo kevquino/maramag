@@ -177,33 +177,49 @@ const openDeleteDialog = () => {
   <Head :title="article.title" />
 
   <AppLayout :breadcrumbs="canManageNews ? breadcrumbs : []">
-    <div class="flex h-full flex-1 flex-col gap-6 p-6 w-full">
+    <div class="flex h-full flex-1 flex-col gap-6 p-4 md:p-6 w-full">
       <!-- Header Section -->
-      <div class="flex items-center justify-between w-full">
+      <div class="flex flex-col sm:flex-row sm:items-center justify-between w-full gap-4">
         <div class="w-full">
-          <h1 class="text-3xl font-bold text-foreground">{{ article.title }}</h1>
-          <p class="text-muted-foreground mt-2 text-lg">{{ article.excerpt }}</p>
+          <h1 class="text-2xl sm:text-3xl font-bold text-foreground">{{ article.title }}</h1>
+          <p class="text-muted-foreground mt-2 text-base sm:text-lg">{{ article.excerpt }}</p>
         </div>
         
         <!-- Admin Actions - Back, Edit and Delete -->
-        <div v-if="canManageNews" class="flex items-center space-x-2">
-          <Button variant="outline" size="sm" @click="handleBack">
-            <ArrowLeft class="h-4 w-4 mr-2" />
-            Back to List
-          </Button>
-          <Button variant="outline" size="sm" @click="handleEdit">
-            <Edit class="h-4 w-4 mr-2" />
-            Edit
-          </Button>
-          <Button variant="destructive" size="sm" @click="openDeleteDialog">
-            <Trash2 class="h-4 w-4 mr-2" />
-            Delete
-          </Button>
+        <div v-if="canManageNews" class="flex items-center justify-end sm:justify-start space-x-2 w-full sm:w-auto">
+          <!-- Mobile: Icon-only buttons -->
+          <div class="flex sm:hidden space-x-1">
+            <Button variant="outline" size="sm" @click="handleBack" class="px-2">
+              <ArrowLeft class="h-4 w-4" />
+            </Button>
+            <Button variant="outline" size="sm" @click="handleEdit" class="px-2">
+              <Edit class="h-4 w-4" />
+            </Button>
+            <Button variant="destructive" size="sm" @click="openDeleteDialog" class="px-2">
+              <Trash2 class="h-4 w-4" />
+            </Button>
+          </div>
+          
+          <!-- Desktop: Full buttons with text -->
+          <div class="hidden sm:flex items-center space-x-2">
+            <Button variant="outline" size="sm" @click="handleBack">
+              <ArrowLeft class="h-4 w-4 mr-2" />
+              Back to List
+            </Button>
+            <Button variant="outline" size="sm" @click="handleEdit">
+              <Edit class="h-4 w-4 mr-2" />
+              Edit
+            </Button>
+            <Button variant="destructive" size="sm" @click="openDeleteDialog">
+              <Trash2 class="h-4 w-4 mr-2" />
+              Delete
+            </Button>
+          </div>
         </div>
       </div>
 
       <!-- Article Meta Information -->
-      <div class="flex flex-wrap items-center gap-4 text-sm text-muted-foreground bg-muted/50 rounded-lg p-4 w-full">
+      <div class="flex flex-col sm:flex-row flex-wrap items-start sm:items-center gap-3 sm:gap-4 text-sm text-muted-foreground bg-muted/50 rounded-lg p-4 w-full">
         <div class="flex items-center space-x-2">
           <User class="h-4 w-4" />
           <span>By {{ article.author.name }}</span>
@@ -232,7 +248,7 @@ const openDeleteDialog = () => {
       <!-- Article Content -->
       <div class="bg-card rounded-lg border shadow-sm overflow-hidden w-full">
         <!-- Featured Image -->
-        <div v-if="article.image_url" class="w-full h-80 overflow-hidden">
+        <div v-if="article.image_url" class="w-full h-64 sm:h-80 overflow-hidden">
           <img
             :src="article.image_url"
             :alt="article.title"
@@ -241,27 +257,28 @@ const openDeleteDialog = () => {
         </div>
 
         <!-- Content -->
-        <div class="p-8">
+        <div class="p-4 sm:p-6 md:p-8">
           <div 
-            class="prose prose-lg max-w-none"
+            class="prose prose-sm sm:prose-lg max-w-none"
             v-html="article.content"
           ></div>
         </div>
       </div>
 
       <!-- Admin Actions Footer -->
-      <div v-if="canManageNews" class="flex items-center justify-between p-4 bg-muted/50 rounded-lg">
+      <div v-if="canManageNews" class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 p-4 bg-muted/50 rounded-lg">
         <div class="flex items-center space-x-2">
           <span class="text-sm text-muted-foreground">Quick Actions:</span>
         </div>
-        <div class="flex items-center space-x-2">
+        <div class="flex flex-wrap items-center gap-2">
           <Button 
             v-if="article.status !== 'published'" 
             variant="outline" 
             size="sm"
             @click="handleStatusChange('published')"
+            class="text-xs sm:text-sm"
           >
-            <Eye class="h-4 w-4 mr-2" />
+            <Eye class="h-4 w-4 mr-1 sm:mr-2" />
             Publish
           </Button>
           <Button 
@@ -269,24 +286,27 @@ const openDeleteDialog = () => {
             variant="outline" 
             size="sm"
             @click="handleStatusChange('draft')"
+            class="text-xs sm:text-sm"
           >
-            <Eye class="h-4 w-4 mr-2" />
+            <Eye class="h-4 w-4 mr-1 sm:mr-2" />
             Unpublish
           </Button>
           <Button 
             variant="outline" 
             size="sm"
             @click="handleFeatureToggle"
+            class="text-xs sm:text-sm"
           >
-            <Star class="h-4 w-4 mr-2" :class="article.is_featured ? 'fill-yellow-500 text-yellow-500' : ''" />
+            <Star class="h-4 w-4 mr-1 sm:mr-2" :class="article.is_featured ? 'fill-yellow-500 text-yellow-500' : ''" />
             {{ article.is_featured ? 'Unfeature' : 'Feature' }}
           </Button>
           <Button 
             variant="outline" 
             size="sm"
             @click="handleStatusChange('archived')"
+            class="text-xs sm:text-sm"
           >
-            <Tag class="h-4 w-4 mr-2" />
+            <Tag class="h-4 w-4 mr-1 sm:mr-2" />
             Archive
           </Button>
         </div>
@@ -378,5 +398,25 @@ const openDeleteDialog = () => {
 .prose a {
   color: hsl(var(--primary));
   text-decoration: underline;
+}
+
+@media (max-width: 640px) {
+  .prose h1 {
+    font-size: 1.5rem;
+    margin-top: 1.5rem;
+    margin-bottom: 0.75rem;
+  }
+
+  .prose h2 {
+    font-size: 1.25rem;
+    margin-top: 1.25rem;
+    margin-bottom: 0.5rem;
+  }
+
+  .prose h3 {
+    font-size: 1.125rem;
+    margin-top: 1rem;
+    margin-bottom: 0.5rem;
+  }
 }
 </style>
