@@ -1,354 +1,283 @@
 <script setup lang="ts">
 import AppLayout from '@/layouts/AppLayout.vue';
-import { news } from '@/routes';
+import { dashboard } from '@/routes';
 import { type BreadcrumbItem } from '@/types';
-import { Head, router, Link } from '@inertiajs/vue3';
-import { ref, onMounted } from 'vue';
+import { Head, router, usePage } from '@inertiajs/vue3';
+import { ArrowLeft, Calendar, User, Tag, Eye, Edit, Trash2, Star } from 'lucide-vue-next';
+import { ref, computed } from 'vue';
+import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
+import { toast } from 'vue-sonner';
 
-interface NewsArticle {
-  id: number;
-  title: string;
-  excerpt: string;
-  content: string;
-  publishedAt: string;
-  author: string;
-  category: string;
-  status: 'published' | 'draft' | 'archived';
-  isFeatured?: boolean;
-  image?: string | null;
-}
-
-// Mock data - in real app, this would come from props
-const newsArticles: NewsArticle[] = [
-  {
-    id: 1,
-    title: 'New Product Launch Exceeds Expectations',
-    excerpt: 'Our latest product has seen record sales in the first week of release, surpassing all projections.',
-    content: `
-      <p>We are thrilled to announce that our latest product launch has exceeded all expectations, with record-breaking sales in the first week alone. The innovative features and user-centric design have resonated strongly with our customer base.</p>
-      
-      <h3>Key Achievements</h3>
-      <ul>
-        <li>150% increase in first-week sales compared to previous launches</li>
-        <li>98% customer satisfaction rating</li>
-        <li>Featured in top industry publications</li>
-      </ul>
-
-      <p>The success of this launch demonstrates our commitment to innovation and customer satisfaction. Our team worked tirelessly to ensure every aspect of the product met the highest standards of quality and performance.</p>
-
-      <blockquote>
-        "This product represents a significant leap forward in our industry. The response from customers has been overwhelmingly positive."
-      </blockquote>
-
-      <p>We look forward to continuing this momentum and bringing more innovative solutions to our customers in the coming months.</p>
-    `,
-    publishedAt: '2023-10-15',
-    author: 'Jane Smith',
-    category: 'Business',
-    status: 'published',
-    isFeatured: true
-  },
-  {
-    id: 2,
-    title: 'Company Announces Quarterly Results',
-    excerpt: 'Strong growth reported across all business segments with a 25% increase in revenue.',
-    content: 'Full article content would go here...',
-    publishedAt: '2023-10-10',
-    author: 'John Doe',
-    category: 'Finance',
-    status: 'published'
-  },
-  // ... other articles
-];
-
-// Get article ID from route
+// Props
 const props = defineProps<{
-  id: string;
+  article: {
+    id: string;
+    title: string;
+    slug: string;
+    excerpt: string;
+    content: string;
+    status: 'draft' | 'published' | 'archived';
+    category: string;
+    author: {
+      id: string;
+      name: string;
+      email: string;
+    };
+    published_at: string;
+    created_at: string;
+    updated_at: string;
+    is_featured: boolean;
+    image_path: string | null;
+    image_url: string | null;
+  };
 }>();
 
-// Delete modal state
-const showDeleteModal = ref(false);
-
-const article = ref<NewsArticle | null>(null);
-
-const breadcrumbs: BreadcrumbItem[] = [
-  {
-    title: 'News Management',
-    href: news().url,
-  },
-  {
-    title: 'View Article',
-    href: '#',
-  },
-];
-
-// Find the article by ID
-onMounted(() => {
-  const foundArticle = newsArticles.find(a => a.id === parseInt(props.id));
-  if (foundArticle) {
-    article.value = foundArticle;
-  }
+// Get auth user from Inertia page props
+const page = usePage();
+const authUser = computed(() => page.props.auth.user);
+const isAuthenticated = computed(() => !!authUser.value);
+const canManageNews = computed(() => {
+  return isAuthenticated.value && authUser.value?.can_manage_news;
 });
 
-const openDeleteModal = () => {
-  showDeleteModal.value = true;
+// Breadcrumbs
+const breadcrumbs = computed<BreadcrumbItem[]>(() => [
+  {
+    title: 'Dashboard',
+    href: dashboard().url,
+  },
+  {
+    title: 'News Management',
+    href: '/news',
+  },
+  {
+    title: props.article.title,
+    href: `/news/${props.article.id}`,
+  },
+]);
+
+// Reactive states
+const deleteDialogOpen = ref(false);
+const deleting = ref(false);
+
+// Format date
+const formatDate = (dateString: string) => {
+  return new Date(dateString).toLocaleDateString('en-US', {
+    year: 'numeric',
+    month: 'long',
+    day: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+  });
 };
 
-const closeDeleteModal = () => {
-  showDeleteModal.value = false;
+// Status configuration
+const statusConfig = {
+  draft: { variant: 'outline' as const, label: 'Draft', color: 'text-orange-600 bg-orange-50 border-orange-200' },
+  published: { variant: 'default' as const, label: 'Published', color: 'text-green-600 bg-green-50 border-green-200' },
+  archived: { variant: 'secondary' as const, label: 'Archived', color: 'text-blue-600 bg-blue-50 border-blue-200' },
 };
 
-const confirmDelete = () => {
-  // In real app, this would make an API call to delete the article
-  console.log('Deleting article:', article.value?.id);
-  
-  // Redirect back to news index after deletion
-  router.visit(news().url);
-  closeDeleteModal();
+// Handle back to news list using Inertia
+const handleBack = () => {
+  router.get('/news');
+};
+
+// Handle edit using Inertia
+const handleEdit = () => {
+  router.get(`/news/${props.article.id}/edit`);
+};
+
+// Handle status change using Inertia
+const handleStatusChange = async (newStatus: string) => {
+  try {
+    router.post(`/news/${props.article.id}/status`, { status: newStatus }, {
+      preserveScroll: true,
+      onSuccess: () => {
+        toast.success('Status updated successfully!');
+        router.reload();
+      },
+      onError: (errors) => {
+        const errorMsg = errors.message || 'Failed to update status';
+        toast.error(errorMsg);
+      },
+    });
+  } catch (err) {
+    console.error('Failed to update status:', err);
+    const errorMsg = err instanceof Error ? err.message : 'Failed to update status';
+    toast.error(errorMsg);
+  }
+};
+
+// Handle feature toggle using Inertia
+const handleFeatureToggle = async () => {
+  try {
+    router.post(`/news/${props.article.id}/toggle-featured`, {}, {
+      preserveScroll: true,
+      onSuccess: () => {
+        toast.success('Feature status updated!');
+        router.reload();
+      },
+      onError: (errors) => {
+        const errorMsg = errors.message || 'Failed to toggle feature';
+        toast.error(errorMsg);
+      },
+    });
+  } catch (err) {
+    console.error('Failed to toggle feature:', err);
+    const errorMsg = err instanceof Error ? err.message : 'Failed to toggle feature';
+    toast.error(errorMsg);
+  }
+};
+
+// Delete news article using Inertia
+const deleteNews = async () => {
+  deleting.value = true;
+  try {
+    router.delete(`/news/${props.article.id}`, {
+      preserveScroll: false,
+      onSuccess: () => {
+        toast.success('Article deleted successfully!');
+        router.get('/news');
+      },
+      onError: (errors) => {
+        const errorMsg = errors.message || 'Failed to delete article';
+        toast.error(errorMsg);
+        deleting.value = false;
+        deleteDialogOpen.value = false;
+      },
+    });
+  } catch (err) {
+    console.error('Failed to delete article:', err);
+    const errorMsg = err instanceof Error ? err.message : 'Failed to delete article';
+    toast.error(errorMsg);
+    deleting.value = false;
+    deleteDialogOpen.value = false;
+  }
+};
+
+// Open delete confirmation dialog
+const openDeleteDialog = () => {
+  deleteDialogOpen.value = true;
 };
 </script>
 
 <template>
-  <Head :title="article?.title || 'News Article'" />
+  <Head :title="article.title" />
 
-  <AppLayout :breadcrumbs="breadcrumbs">
-    <div class="flex h-full flex-1 flex-col gap-6 rounded-xl p-4">
+  <AppLayout :breadcrumbs="canManageNews ? breadcrumbs : []">
+    <div class="flex h-full flex-1 flex-col gap-6 p-6 w-full">
       <!-- Header Section -->
-      <div class="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4">
-        <div class="flex-1">
-          <div class="flex items-center gap-3 mb-2">
-            <span 
-              class="inline-flex items-center rounded-full border px-3 py-1 text-sm font-semibold"
-              :class="{
-                'bg-green-100 text-green-800 border-green-200 dark:bg-green-900 dark:text-green-200 dark:border-green-800': article?.status === 'published',
-                'bg-yellow-100 text-yellow-800 border-yellow-200 dark:bg-yellow-900 dark:text-yellow-200 dark:border-yellow-800': article?.status === 'draft',
-                'bg-red-100 text-red-800 border-red-200 dark:bg-red-900 dark:text-red-200 dark:border-red-800': article?.status === 'archived'
-              }"
-            >
-              {{ article?.status }}
-            </span>
-            <span 
-              v-if="article?.isFeatured"
-              class="inline-flex items-center rounded-full border px-3 py-1 text-sm font-semibold bg-yellow-100 text-yellow-800 border-yellow-200 dark:bg-yellow-900 dark:text-yellow-200 dark:border-yellow-800"
-            >
-              Featured
-            </span>
-          </div>
-          <h1 class="text-2xl lg:text-3xl font-bold text-gray-900 dark:text-white mb-2">
-            {{ article?.title }}
-          </h1>
-          <p class="text-lg text-gray-600 dark:text-gray-400">
-            {{ article?.excerpt }}
-          </p>
+      <div class="flex items-center justify-between w-full">
+        <div class="w-full">
+          <h1 class="text-3xl font-bold text-foreground">{{ article.title }}</h1>
+          <p class="text-muted-foreground mt-2 text-lg">{{ article.excerpt }}</p>
         </div>
         
-        <!-- Action Buttons -->
-        <div class="flex items-center gap-3">
-          <Link
-            :href="`/news/${article?.id}/edit`"
-            class="inline-flex items-center justify-center rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 border border-gray-300 bg-white hover:bg-gray-50 dark:border-gray-600 dark:bg-gray-700 dark:hover:bg-gray-600 h-10 px-4 py-2 text-gray-700 dark:text-gray-300"
-          >
-            <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-            </svg>
+        <!-- Admin Actions - Back, Edit and Delete -->
+        <div v-if="canManageNews" class="flex items-center space-x-2">
+          <Button variant="outline" size="sm" @click="handleBack">
+            <ArrowLeft class="h-4 w-4 mr-2" />
+            Back to List
+          </Button>
+          <Button variant="outline" size="sm" @click="handleEdit">
+            <Edit class="h-4 w-4 mr-2" />
             Edit
-          </Link>
-          <button
-            @click="openDeleteModal"
-            class="inline-flex items-center justify-center rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 border border-gray-300 bg-white hover:bg-red-50 dark:border-gray-600 dark:bg-gray-700 dark:hover:bg-red-900/20 h-10 px-4 py-2 text-red-600 dark:text-red-400"
-          >
-            <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-            </svg>
+          </Button>
+          <Button variant="destructive" size="sm" @click="openDeleteDialog">
+            <Trash2 class="h-4 w-4 mr-2" />
             Delete
-          </button>
+          </Button>
         </div>
+      </div>
+
+      <!-- Article Meta Information -->
+      <div class="flex flex-wrap items-center gap-4 text-sm text-muted-foreground bg-muted/50 rounded-lg p-4 w-full">
+        <div class="flex items-center space-x-2">
+          <User class="h-4 w-4" />
+          <span>By {{ article.author.name }}</span>
+        </div>
+        <div class="flex items-center space-x-2">
+          <Calendar class="h-4 w-4" />
+          <span>Created: {{ formatDate(article.created_at) }}</span>
+        </div>
+        <div v-if="article.published_at" class="flex items-center space-x-2">
+          <Eye class="h-4 w-4" />
+          <span>Published: {{ formatDate(article.published_at) }}</span>
+        </div>
+        <div class="flex items-center space-x-2">
+          <Tag class="h-4 w-4" />
+          <span>Category: {{ article.category }}</span>
+        </div>
+        <Badge v-if="canManageNews" :variant="statusConfig[article.status].variant" :class="statusConfig[article.status].color">
+          {{ statusConfig[article.status].label }}
+        </Badge>
+        <Badge v-if="article.is_featured" variant="default" class="bg-yellow-100 text-yellow-800 border-yellow-200">
+          <Star class="h-3 w-3 mr-1 fill-yellow-500 text-yellow-500" />
+          Featured
+        </Badge>
       </div>
 
       <!-- Article Content -->
-      <div class="grid gap-6 lg:grid-cols-4">
-        <!-- Main Content -->
-        <div class="lg:col-span-3">
-          <div class="rounded-lg border border-sidebar-border/70 bg-white shadow-sm dark:border-sidebar-border dark:bg-gray-800">
-            <div class="p-6">
-              <!-- Article Meta -->
-              <div class="flex flex-wrap items-center gap-4 text-sm text-gray-600 dark:text-gray-400 mb-6 pb-4 border-b border-gray-200 dark:border-gray-700">
-                <div class="flex items-center gap-2">
-                  <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
-                  </svg>
-                  <span>By {{ article?.author }}</span>
-                </div>
-                <div class="flex items-center gap-2">
-                  <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                  </svg>
-                  <span>{{ article ? new Date(article.publishedAt).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' }) : '' }}</span>
-                </div>
-                <div class="flex items-center gap-2">
-                  <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z" />
-                  </svg>
-                  <span>{{ article?.category }}</span>
-                </div>
-              </div>
-
-              <!-- Article Content -->
-              <div class="prose max-w-none dark:prose-invert">
-                <div v-html="article?.content"></div>
-              </div>
-            </div>
-          </div>
+      <div class="bg-card rounded-lg border shadow-sm overflow-hidden w-full">
+        <!-- Featured Image -->
+        <div v-if="article.image_url" class="w-full h-80 overflow-hidden">
+          <img
+            :src="article.image_url"
+            :alt="article.title"
+            class="w-full h-full object-cover"
+          />
         </div>
 
-        <!-- Sidebar -->
-        <div class="space-y-6">
-          <!-- Article Information -->
-          <div class="rounded-lg border border-sidebar-border/70 bg-white p-6 shadow-sm dark:border-sidebar-border dark:bg-gray-800">
-            <h3 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">
-              Article Information
-            </h3>
-            <div class="space-y-3 text-sm">
-              <div class="flex justify-between">
-                <span class="text-gray-600 dark:text-gray-400">Article ID:</span>
-                <span class="font-medium text-gray-900 dark:text-white">{{ props.id }}</span>
-              </div>
-              <div class="flex justify-between">
-                <span class="text-gray-600 dark:text-gray-400">Status:</span>
-                <span 
-                  class="font-medium"
-                  :class="{
-                    'text-green-600 dark:text-green-400': article?.status === 'published',
-                    'text-yellow-600 dark:text-yellow-400': article?.status === 'draft',
-                    'text-red-600 dark:text-red-400': article?.status === 'archived'
-                  }"
-                >
-                  {{ article?.status }}
-                </span>
-              </div>
-              <div class="flex justify-between">
-                <span class="text-gray-600 dark:text-gray-400">Featured:</span>
-                <span class="font-medium text-gray-900 dark:text-white">
-                  {{ article?.isFeatured ? 'Yes' : 'No' }}
-                </span>
-              </div>
-              <div class="flex justify-between">
-                <span class="text-gray-600 dark:text-gray-400">Word Count:</span>
-                <span class="font-medium text-gray-900 dark:text-white">
-                  {{ article?.content ? article.content.replace(/<[^>]*>/g, '').split(/\s+/).filter(word => word.length > 0).length : 0 }} words
-                </span>
-              </div>
-            </div>
-          </div>
-
-          <!-- Quick Actions -->
-          <div class="rounded-lg border border-sidebar-border/70 bg-white p-6 shadow-sm dark:border-sidebar-border dark:bg-gray-800">
-            <h3 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">
-              Quick Actions
-            </h3>
-            <div class="space-y-3">
-              <Link
-                :href="`/news/${article?.id}/edit`"
-                class="w-full inline-flex items-center justify-center rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 bg-blue-600 text-white hover:bg-blue-700 h-10 px-4 py-2"
-              >
-                <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-                </svg>
-                Edit Article
-              </Link>
-              <Link
-                :href="news().url"
-                class="w-full inline-flex items-center justify-center rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 border border-gray-300 bg-white hover:bg-gray-50 dark:border-gray-600 dark:bg-gray-700 dark:hover:bg-gray-600 h-10 px-4 py-2 text-gray-700 dark:text-gray-300"
-              >
-                <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18" />
-                </svg>
-                Back to List
-              </Link>
-            </div>
-          </div>
-
-          <!-- Status Guide -->
-          <div class="rounded-lg border border-sidebar-border/70 bg-white p-6 shadow-sm dark:border-sidebar-border dark:bg-gray-800">
-            <h3 class="text-lg font-semibold text-gray-900 dark:text-white mb-3">
-              Status Guide
-            </h3>
-            <div class="space-y-3 text-sm">
-              <div class="flex items-center gap-2">
-                <span class="inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-semibold border-transparent bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200">
-                  Published
-                </span>
-                <span class="text-gray-600 dark:text-gray-300">Visible to all users</span>
-              </div>
-              <div class="flex items-center gap-2">
-                <span class="inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-semibold border-transparent bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200">
-                  Draft
-                </span>
-                <span class="text-gray-600 dark:text-gray-300">Only visible to editors</span>
-              </div>
-              <div class="flex items-center gap-2">
-                <span class="inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-semibold border-transparent bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200">
-                  Archived
-                </span>
-                <span class="text-gray-600 dark:text-gray-300">Hidden from public view</span>
-              </div>
-            </div>
-          </div>
+        <!-- Content -->
+        <div class="p-8">
+          <div 
+            class="prose prose-lg max-w-none"
+            v-html="article.content"
+          ></div>
         </div>
       </div>
     </div>
 
-    <!-- Delete Confirmation Modal -->
-    <div 
-      v-if="showDeleteModal" 
-      class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm transition-opacity"
-      @click="closeDeleteModal"
-    >
-      <div 
-        class="bg-white rounded-lg max-w-md w-full mx-auto shadow-xl dark:bg-gray-800 transform transition-all"
-        @click.stop
-      >
-        <div class="p-6">
-          <!-- Warning Icon -->
-          <div class="flex items-center justify-center w-12 h-12 mx-auto mb-4 bg-red-100 rounded-full dark:bg-red-900">
-            <svg class="w-6 h-6 text-red-600 dark:text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L4.35 16.5c-.77.833.192 2.5 1.732 2.5z" />
-            </svg>
-          </div>
-
-          <!-- Modal Content -->
-          <div class="text-center">
-            <h3 class="text-lg font-semibold text-gray-900 dark:text-white mb-2">
-              Delete Article
-            </h3>
-            <p class="text-sm text-gray-600 dark:text-gray-400 mb-6">
-              Are you sure you want to delete 
-              <span class="font-medium text-gray-900 dark:text-white">"{{ article?.title }}"</span>? 
-              This action cannot be undone.
-            </p>
-
-            <!-- Action Buttons -->
-            <div class="flex flex-col sm:flex-row gap-3 justify-center">
-              <button
-                @click="closeDeleteModal"
-                class="inline-flex items-center justify-center rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 border border-gray-300 bg-white hover:bg-gray-50 dark:border-gray-600 dark:bg-gray-700 dark:hover:bg-gray-600 h-10 px-4 py-2 text-gray-700 dark:text-gray-300 flex-1 sm:flex-none"
-              >
-                Cancel
-              </button>
-              <button
-                @click="confirmDelete"
-                class="inline-flex items-center justify-center rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 bg-red-600 text-white hover:bg-red-700 h-10 px-4 py-2 flex-1 sm:flex-none"
-              >
-                <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                </svg>
-                Delete Article
-              </button>
+    <!-- Delete Confirmation Dialog -->
+    <AlertDialog v-model:open="deleteDialogOpen">
+      <AlertDialogContent>
+        <AlertDialogHeader>
+          <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
+          <AlertDialogDescription>
+            This action cannot be undone. This will permanently delete the news article
+            "{{ article.title }}" and remove it from our servers.
+          </AlertDialogDescription>
+        </AlertDialogHeader>
+        <AlertDialogFooter>
+          <AlertDialogCancel :disabled="deleting" @click="deleteDialogOpen = false">
+            Cancel
+          </AlertDialogCancel>
+          <AlertDialogAction 
+            @click="deleteNews"
+            class="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            :disabled="deleting"
+          >
+            <div v-if="deleting" class="flex items-center space-x-2">
+              <div class="animate-spin rounded-full h-3 w-3 border-b-2 border-white"></div>
+              <span>Deleting...</span>
             </div>
-          </div>
-        </div>
-      </div>
-    </div>
+            <span v-else>Delete Article</span>
+          </AlertDialogAction>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
   </AppLayout>
 </template>
 
@@ -357,48 +286,54 @@ const confirmDelete = () => {
   line-height: 1.75;
 }
 
-.prose h3 {
-  font-size: 1.25rem;
-  font-weight: 600;
-  margin-top: 1.5rem;
-  margin-bottom: 0.5rem;
-  color: #1f2937;
-}
-
-.dark .prose h3 {
-  color: #f3f4f6;
-}
-
-.prose ul {
-  list-style-type: disc;
-  padding-left: 1.5rem;
+.prose h1 {
+  font-size: 1.875rem;
+  font-weight: bold;
+  margin-top: 2rem;
   margin-bottom: 1rem;
 }
 
-.prose li {
-  margin-bottom: 0.25rem;
+.prose h2 {
+  font-size: 1.5rem;
+  font-weight: bold;
+  margin-top: 1.5rem;
+  margin-bottom: 0.75rem;
 }
 
-.prose blockquote {
-  border-left: 4px solid #e5e7eb;
-  padding-left: 1rem;
-  font-style: italic;
-  color: #6b7280;
-  margin: 1.5rem 0;
-}
-
-.dark .prose blockquote {
-  border-left-color: #4b5563;
-  color: #9ca3af;
+.prose h3 {
+  font-size: 1.25rem;
+  font-weight: bold;
+  margin-top: 1rem;
+  margin-bottom: 0.5rem;
 }
 
 .prose p {
   margin-bottom: 1rem;
 }
 
-/* Smooth backdrop blur transition */
-.backdrop-blur-sm {
-  backdrop-filter: blur(4px);
-  -webkit-backdrop-filter: blur(4px);
+.prose ul, .prose ol {
+  margin-bottom: 1rem;
+  padding-left: 1.5rem;
+}
+
+.prose li {
+  margin-bottom: 0.5rem;
+}
+
+.prose blockquote {
+  border-left: 4px solid hsl(var(--muted-foreground));
+  padding-left: 1rem;
+  font-style: italic;
+  margin: 1rem 0;
+}
+
+.prose img {
+  border-radius: 0.5rem;
+  margin: 1rem 0;
+}
+
+.prose a {
+  color: hsl(var(--primary));
+  text-decoration: underline;
 }
 </style>

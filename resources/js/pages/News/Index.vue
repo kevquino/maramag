@@ -16,9 +16,10 @@ import {
   getSortedRowModel,
   useVueTable,
 } from "@tanstack/vue-table"
-import { ArrowUpDown, ChevronDown, MoreHorizontal, Eye, Edit, Archive, Trash2, Star, AlertCircle, CheckCircle } from "lucide-vue-next"
-import { h, ref, onMounted, computed, watch } from "vue"
-import { router, Head } from '@inertiajs/vue3'
+import { ArrowUpDown, ChevronDown, MoreHorizontal, Eye, Edit, Archive, Trash2, Star } from "lucide-vue-next"
+import { h, ref, computed, watch } from "vue"
+import { router, Head, Link } from '@inertiajs/vue3'
+import { toast } from 'vue-sonner'
 
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
@@ -51,7 +52,22 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog"
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
+
+// Props from Inertia
+const props = defineProps<{
+  news: {
+    data: any[]
+    current_page: number
+    last_page: number
+    per_page: number
+    total: number
+  }
+  filters: {
+    search?: string
+    status?: string
+    category?: string
+  }
+}>();
 
 // Utility function to handle value updates
 function valueUpdater<T>(updaterOrValue: T | ((old: T) => T), ref: { value: T }) {
@@ -94,111 +110,73 @@ export interface News {
   image_url: string | null
 }
 
-// Reactive data
-const data = ref<News[]>([])
-const loading = ref(true)
-const total = ref(0)
-const currentPage = ref(1)
-const pageSize = ref(5)
-const error = ref<string | null>(null)
-const searchQuery = ref('')
-const successMessage = ref<string | null>(null)
+// Use data from Inertia props instead of fetch
+const data = ref<News[]>(props.news.data || [])
+const loading = ref(false)
+const total = ref(props.news.total || 0)
+const currentPage = ref(props.news.current_page || 1)
+const pageSize = ref(props.news.per_page || 5)
+const searchQuery = ref(props.filters.search || '')
 
 // Delete dialog state
 const deleteDialogOpen = ref(false)
 const newsToDelete = ref<News | null>(null)
 const deleting = ref(false)
 
-// Alert visibility
-const showAlert = ref(false)
-const alertType = ref<'success' | 'error'>('success')
-const alertMessage = ref('')
-
-// Show alert function
-const showAlertMessage = (type: 'success' | 'error', message: string) => {
-  alertType.value = type
-  alertMessage.value = message
-  showAlert.value = true
-  setTimeout(() => {
-    showAlert.value = false
-  }, 5000)
+// Handle search with Inertia
+const handleSearch = (value: string) => {
+  searchQuery.value = value
+  router.get('/news', { search: value }, {
+    preserveState: true,
+    replace: true,
+    preserveScroll: true
+  })
 }
 
-// Get CSRF token
-const getCsrfToken = (): string => {
-  const token = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content')
-  return token || ''
-}
-
-// Fetch news data from backend
-const fetchNews = async (page = 1, search = '') => {
-  loading.value = true
-  error.value = null
-  try {
-    const url = `/news?page=${page}&search=${encodeURIComponent(search)}&per_page=${pageSize.value}&ajax=1`
-    
-    const response = await fetch(url, {
-      headers: {
-        'Accept': 'application/json',
-        'X-Requested-With': 'XMLHttpRequest'
-      }
+// Handle pagination with Inertia
+const handlePreviousPage = () => {
+  if (currentPage.value > 1) {
+    router.get('/news', { page: currentPage.value - 1, search: searchQuery.value }, {
+      preserveState: true,
+      preserveScroll: true
     })
-    
-    if (!response.ok) {
-      throw new Error(`HTTP error! status: ${response.status}`)
-    }
-    
-    const result = await response.json()
-    
-    data.value = result.data || []
-    total.value = result.total || 0
-    currentPage.value = result.current_page || 1
-    pageSize.value = result.per_page || 5
-    
-  } catch (err) {
-    console.error('Failed to fetch news:', err)
-    const errorMsg = err instanceof Error ? err.message : 'Failed to load news articles'
-    error.value = errorMsg
-    showAlertMessage('error', errorMsg)
-    data.value = []
-  } finally {
-    loading.value = false
   }
 }
 
-// Initialize data
-onMounted(() => {
-  fetchNews()
-})
+const handleNextPage = () => {
+  if (currentPage.value < Math.ceil(total.value / pageSize.value)) {
+    router.get('/news', { page: currentPage.value + 1, search: searchQuery.value }, {
+      preserveState: true,
+      preserveScroll: true
+    })
+  }
+}
 
-// Delete news article
+// Delete news article using Inertia
 const deleteNews = async () => {
   if (!newsToDelete.value) return
 
   deleting.value = true
   try {
-    const response = await fetch(`/news/${newsToDelete.value.id}`, {
-      method: 'DELETE',
-      headers: {
-        'Content-Type': 'application/json',
-        'X-CSRF-TOKEN': getCsrfToken(),
-        'Accept': 'application/json',
-        'X-Requested-With': 'XMLHttpRequest'
+    router.delete(`/news/${newsToDelete.value.id}`, {
+      preserveScroll: true,
+      onSuccess: () => {
+        toast.success('Article deleted successfully!')
+      },
+      onError: (errors) => {
+        const errorMsg = errors.message || 'Failed to delete article'
+        toast.error(errorMsg)
+      },
+      onFinish: () => {
+        deleting.value = false
+        deleteDialogOpen.value = false
+        newsToDelete.value = null
       }
     })
-
-    if (response.ok) {
-      showAlertMessage('success', 'Article deleted successfully!')
-      await fetchNews(currentPage.value, searchQuery.value)
-    } else {
-      const errorData = await response.json().catch(() => ({}))
-      throw new Error(errorData.message || `Failed to delete article: ${response.status}`)
-    }
   } catch (err) {
     console.error('Failed to delete article:', err)
     const errorMsg = err instanceof Error ? err.message : 'Failed to delete article'
-    showAlertMessage('error', errorMsg)
-  } finally {
+    toast.error(errorMsg)
     deleting.value = false
     deleteDialogOpen.value = false
     newsToDelete.value = null
@@ -211,60 +189,43 @@ const openDeleteDialog = (news: News) => {
   deleteDialogOpen.value = true
 }
 
-// Status change handler
+// Status change handler using Inertia
 const handleStatusChange = async (news: News, newStatus: string) => {
   try {
-    const response = await fetch(`/news/${news.id}/status`, {
-      method: 'PATCH',
-      headers: {
-        'Content-Type': 'application/json',
-        'X-CSRF-TOKEN': getCsrfToken(),
-        'Accept': 'application/json',
-        'X-Requested-With': 'XMLHttpRequest'
+    router.post(`/news/${news.id}/status`, { status: newStatus }, {
+      preserveScroll: true,
+      onSuccess: () => {
+        toast.success('Status updated successfully!')
       },
-      body: JSON.stringify({ status: newStatus })
+      onError: (errors) => {
+        const errorMsg = errors.message || 'Failed to update status'
+        toast.error(errorMsg)
+      }
     })
-    
-    if (response.ok) {
-      const result = await response.json()
-      showAlertMessage('success', result.success || 'Status updated successfully!')
-      await fetchNews(currentPage.value, searchQuery.value)
-    } else {
-      const errorData = await response.json().catch(() => ({}))
-      throw new Error(errorData.message || `Failed to update status: ${response.status}`)
-    }
   } catch (err) {
     console.error('Failed to update status:', err)
     const errorMsg = err instanceof Error ? err.message : 'Failed to update status'
-    showAlertMessage('error', errorMsg)
+    toast.error(errorMsg)
   }
 }
 
-// Feature toggle handler
+// Feature toggle handler using Inertia
 const handleFeatureToggle = async (news: News) => {
   try {
-    const response = await fetch(`/news/${news.id}/feature`, {
-      method: 'PATCH',
-      headers: {
-        'Content-Type': 'application/json',
-        'X-CSRF-TOKEN': getCsrfToken(),
-        'Accept': 'application/json',
-        'X-Requested-With': 'XMLHttpRequest'
+    router.post(`/news/${news.id}/toggle-featured`, {}, {
+      preserveScroll: true,
+      onSuccess: () => {
+        toast.success('Feature status updated!')
+      },
+      onError: (errors) => {
+        const errorMsg = errors.message || 'Failed to toggle feature'
+        toast.error(errorMsg)
       }
     })
-    
-    if (response.ok) {
-      const result = await response.json()
-      showAlertMessage('success', result.success || 'Feature status updated!')
-      await fetchNews(currentPage.value, searchQuery.value)
-    } else {
-      const errorData = await response.json().catch(() => ({}))
-      throw new Error(errorData.message || `Failed to toggle feature: ${response.status}`)
-    }
   } catch (err) {
     console.error('Failed to toggle feature:', err)
     const errorMsg = err instanceof Error ? err.message : 'Failed to toggle feature'
-    showAlertMessage('error', errorMsg)
+    toast.error(errorMsg)
   }
 }
 
@@ -351,11 +312,11 @@ const columns: ColumnDef<News>[] = [
       const news = row.original
 
       const handleView = () => {
-        window.open(`/news/${news.slug}`, '_blank')
+        router.get(`/news/${news.id}`)
       }
 
       const handleEdit = () => {
-        router.visit(`/news/${news.id}/edit`)
+        router.get(`/news/${news.id}/edit`)
       }
 
       return h(DropdownMenu, {}, [
@@ -375,7 +336,7 @@ const columns: ColumnDef<News>[] = [
             class: "flex items-center space-x-2 cursor-pointer"
           }, [
             h(Eye, { class: "h-4 w-4" }),
-            h("span", "View")
+            h("span", "View Article")
           ]),
           h(DropdownMenuItem, {
             onClick: handleEdit,
@@ -448,28 +409,17 @@ const table = useVueTable({
   },
 })
 
-// Handle search
-const handleSearch = (value: string) => {
-  searchQuery.value = value
-  fetchNews(1, value)
-}
+// Update data when props change (for navigation)
+watch(() => props.news, (newNews) => {
+  data.value = newNews.data || []
+  total.value = newNews.total || 0
+  currentPage.value = newNews.current_page || 1
+  pageSize.value = newNews.per_page || 5
+}, { deep: true })
 
-// Handle pagination
-const handlePreviousPage = () => {
-  if (currentPage.value > 1) {
-    fetchNews(currentPage.value - 1, searchQuery.value)
-  }
-}
-
-const handleNextPage = () => {
-  if (currentPage.value < Math.ceil(total.value / pageSize.value)) {
-    fetchNews(currentPage.value + 1, searchQuery.value)
-  }
-}
-
-const handleCreate = () => {
-  router.visit('/news/create')
-}
+watch(() => props.filters, (newFilters) => {
+  searchQuery.value = newFilters.search || ''
+}, { deep: true })
 
 // Update table when data changes
 watch(tableData, () => {
@@ -485,34 +435,18 @@ watch(tableData, () => {
 
   <AppLayout :breadcrumbs="breadcrumbs">
     <div class="flex h-full flex-1 flex-col gap-4 overflow-x-auto rounded-xl p-4">
-      <!-- Success/Error Alert -->
-      <div v-if="showAlert" class="mb-4">
-        <Alert :class="alertType === 'success' ? 'bg-green-50 border-green-200' : 'bg-red-50 border-red-200'">
-          <CheckCircle v-if="alertType === 'success'" class="h-4 w-4 text-green-600" />
-          <AlertCircle v-else class="h-4 w-4 text-red-600" />
-          <AlertTitle :class="alertType === 'success' ? 'text-green-800' : 'text-red-800'">
-            {{ alertType === 'success' ? 'Success' : 'Error' }}
-          </AlertTitle>
-          <AlertDescription :class="alertType === 'success' ? 'text-green-700' : 'text-red-700'">
-            {{ alertMessage }}
-          </AlertDescription>
-        </Alert>
-      </div>
-
       <div class="flex items-center justify-between">
         <div>
           <h1 class="text-2xl font-bold text-foreground">News Management</h1>
           <p class="text-muted-foreground">Manage your news articles and publications</p>
         </div>
-        <Button @click="handleCreate">
-          <span class="mr-2">+</span>
-          Add New Article
-        </Button>
-      </div>
-
-      <!-- Error message -->
-      <div v-if="error && !showAlert" class="p-4 bg-destructive/15 border border-destructive/50 text-destructive rounded-lg">
-        <strong>Error:</strong> {{ error }}
+        <!-- Using Link component for create -->
+        <Link href="/news/create" as="button">
+          <Button>
+            <span class="mr-2">+</span>
+            Add New Article
+          </Button>
+        </Link>
       </div>
 
       <div class="w-full bg-card rounded-lg border shadow-sm">

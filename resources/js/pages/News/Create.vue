@@ -17,6 +17,7 @@ import {
 import { Checkbox } from '@/components/ui/checkbox';
 import { Badge } from '@/components/ui/badge';
 import { X, Upload } from 'lucide-vue-next';
+import { toast } from 'vue-sonner';
 
 const breadcrumbs: BreadcrumbItem[] = [
   {
@@ -139,10 +140,11 @@ const submit = () => {
 
   router.post('/news', formData, {
     onSuccess: () => {
-      // Success will be handled by Inertia response
+      toast.success('Article created successfully!');
     },
     onError: (err) => {
       errors.value = err as Record<string, string>;
+      toast.error('Failed to create article. Please check the form for errors.');
     },
     onFinish: () => {
       loading.value = false;
