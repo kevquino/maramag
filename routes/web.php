@@ -19,10 +19,10 @@ Route::middleware(['auth'])->group(function () {
     // Additional news management routes
     Route::post('/news/{news}/status', [NewsController::class, 'updateStatus'])->name('news.status');
     Route::post('/news/{news}/toggle-featured', [NewsController::class, 'toggleFeatured'])->name('news.toggle-featured');
-    
-    // Public show route (accessible without auth if needed)
-    Route::get('/news/{news}', [NewsController::class, 'show'])->name('news.show');
 });
+
+// Public show route (accessible without auth if needed)
+Route::get('/news/{news}', [NewsController::class, 'show'])->name('news.show');
 
 require __DIR__.'/settings.php';
 require __DIR__.'/auth.php';

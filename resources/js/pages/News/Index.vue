@@ -336,7 +336,7 @@ const columns: ColumnDef<News>[] = [
             class: "flex items-center space-x-2 cursor-pointer"
           }, [
             h(Eye, { class: "h-4 w-4" }),
-            h("span", "View Article")
+            h("span", "View")
           ]),
           h(DropdownMenuItem, {
             onClick: handleEdit,
@@ -346,29 +346,29 @@ const columns: ColumnDef<News>[] = [
             h("span", "Edit")
           ]),
           h(DropdownMenuSeparator),
-          h(DropdownMenuItem, {
-            onClick: () => handleFeatureToggle(news),
-            class: "flex items-center space-x-2 cursor-pointer"
-          }, [
-            h(Star, { class: `h-4 w-4 ${news.is_featured ? 'text-yellow-500 fill-yellow-500' : ''}` }),
-            h("span", news.is_featured ? "Unfeature" : "Feature")
-          ]),
-          h(DropdownMenuSeparator),
-          h(DropdownMenuItem, {
-            onClick: () => handleStatusChange(news, news.status === 'published' ? 'draft' : 'published'),
-            class: `flex items-center space-x-2 cursor-pointer ${news.status === 'published' ? 'text-orange-600' : 'text-green-600'}`
-          }, [
-            h(Archive, { class: "h-4 w-4" }),
-            h("span", news.status === 'published' ? "Unpublish" : "Publish")
-          ]),
-          h(DropdownMenuItem, {
-            onClick: () => handleStatusChange(news, 'archived'),
-            class: "flex items-center space-x-2 cursor-pointer text-blue-600"
-          }, [
-            h(Archive, { class: "h-4 w-4" }),
-            h("span", "Archive")
-          ]),
-          h(DropdownMenuSeparator),
+          // h(DropdownMenuItem, {
+          //   onClick: () => handleFeatureToggle(news),
+          //   class: "flex items-center space-x-2 cursor-pointer"
+          // }, [
+          //   h(Star, { class: `h-4 w-4 ${news.is_featured ? 'text-yellow-500 fill-yellow-500' : ''}` }),
+          //   h("span", news.is_featured ? "Unfeature" : "Feature")
+          // ]),
+          // h(DropdownMenuSeparator),
+          // h(DropdownMenuItem, {
+          //   onClick: () => handleStatusChange(news, news.status === 'published' ? 'draft' : 'published'),
+          //   class: `flex items-center space-x-2 cursor-pointer ${news.status === 'published' ? 'text-orange-600' : 'text-green-600'}`
+          // }, [
+          //   h(Archive, { class: "h-4 w-4" }),
+          //   h("span", news.status === 'published' ? "Unpublish" : "Publish")
+          // ]),
+          // h(DropdownMenuItem, {
+          //   onClick: () => handleStatusChange(news, 'archived'),
+          //   class: "flex items-center space-x-2 cursor-pointer text-blue-600"
+          // }, [
+          //   h(Archive, { class: "h-4 w-4" }),
+          //   h("span", "Archive")
+          // ]),
+          // h(DropdownMenuSeparator),
           h(DropdownMenuItem, {
             onClick: () => openDeleteDialog(news),
             class: "flex items-center space-x-2 cursor-pointer text-destructive"

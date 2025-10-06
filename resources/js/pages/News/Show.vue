@@ -248,6 +248,49 @@ const openDeleteDialog = () => {
           ></div>
         </div>
       </div>
+
+      <!-- Admin Actions Footer -->
+      <div v-if="canManageNews" class="flex items-center justify-between p-4 bg-muted/50 rounded-lg">
+        <div class="flex items-center space-x-2">
+          <span class="text-sm text-muted-foreground">Quick Actions:</span>
+        </div>
+        <div class="flex items-center space-x-2">
+          <Button 
+            v-if="article.status !== 'published'" 
+            variant="outline" 
+            size="sm"
+            @click="handleStatusChange('published')"
+          >
+            <Eye class="h-4 w-4 mr-2" />
+            Publish
+          </Button>
+          <Button 
+            v-if="article.status === 'published'" 
+            variant="outline" 
+            size="sm"
+            @click="handleStatusChange('draft')"
+          >
+            <Eye class="h-4 w-4 mr-2" />
+            Unpublish
+          </Button>
+          <Button 
+            variant="outline" 
+            size="sm"
+            @click="handleFeatureToggle"
+          >
+            <Star class="h-4 w-4 mr-2" :class="article.is_featured ? 'fill-yellow-500 text-yellow-500' : ''" />
+            {{ article.is_featured ? 'Unfeature' : 'Feature' }}
+          </Button>
+          <Button 
+            variant="outline" 
+            size="sm"
+            @click="handleStatusChange('archived')"
+          >
+            <Tag class="h-4 w-4 mr-2" />
+            Archive
+          </Button>
+        </div>
+      </div>
     </div>
 
     <!-- Delete Confirmation Dialog -->

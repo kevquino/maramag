@@ -1,457 +1,420 @@
 <script setup lang="ts">
 import AppLayout from '@/layouts/AppLayout.vue';
-import { news } from '@/routes';
+import { dashboard } from '@/routes';
 import { type BreadcrumbItem } from '@/types';
-import { Head, useForm, router } from '@inertiajs/vue3';
-import { ref, onMounted } from 'vue';
+import { Head, router, useForm } from '@inertiajs/vue3';
+import { ArrowLeft, Save, Upload, Trash2, List, Eye } from 'lucide-vue-next';
+import { ref } from 'vue';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Textarea } from '@/components/ui/textarea';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
+import { Label } from '@/components/ui/label';
+import { Badge } from '@/components/ui/badge';
+import { toast } from 'vue-sonner';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 
-interface NewsArticle {
-  id: number;
-  title: string;
-  excerpt: string;
-  content: string;
-  publishedAt: string;
-  author: string;
-  category: string;
-  status: 'published' | 'draft' | 'archived';
-  isFeatured?: boolean;
-  image?: string | null;
-}
-
-// Mock data - in real app, this would come from props
-const newsArticles: NewsArticle[] = [
-  {
-    id: 1,
-    title: 'New Product Launch Exceeds Expectations',
-    excerpt: 'Our latest product has seen record sales in the first week of release, surpassing all projections.',
-    content: 'Full article content would go here...',
-    publishedAt: '2023-10-15',
-    author: 'Jane Smith',
-    category: 'Business',
-    status: 'published',
-    isFeatured: true
-  },
-  // ... other articles
-];
-
-// Get article ID from route - in real app, this would be from route params
+// Props
 const props = defineProps<{
-  id: string;
+  article: {
+    id: string;
+    title: string;
+    slug: string;
+    excerpt: string;
+    content: string;
+    status: 'draft' | 'published' | 'archived';
+    category: string;
+    author: {
+      id: string;
+      name: string;
+      email: string;
+    };
+    published_at: string;
+    created_at: string;
+    updated_at: string;
+    is_featured: boolean;
+    image_path: string | null;
+    image_url: string | null;
+  };
 }>();
 
-const article = ref<NewsArticle | null>(null);
-const imagePreview = ref<string | null>(null);
-
+// Breadcrumbs
 const breadcrumbs: BreadcrumbItem[] = [
   {
-    title: 'News Management',
-    href: news().url,
+    title: 'Dashboard',
+    href: dashboard().url,
   },
   {
-    title: 'Edit News',
-    href: '#',
+    title: 'News Management',
+    href: '/news',
+  },
+  {
+    title: 'Edit Article',
+    href: `/news/${props.article.id}/edit`,
   },
 ];
 
+// Form handling - Use POST method with _method field
 const form = useForm({
-  title: '',
-  excerpt: '',
-  content: '',
-  category: '',
-  published_at: '',
-  author: '',
-  status: 'draft' as 'published' | 'draft' | 'archived',
-  isFeatured: false,
+  _method: 'PUT', // This tells Laravel to treat it as PUT
+  title: props.article.title,
+  excerpt: props.article.excerpt,
+  content: props.article.content,
+  category: props.article.category,
+  status: props.article.status,
   image: null as File | null,
 });
 
-// Find the article by ID and populate form
-onMounted(() => {
-  const foundArticle = newsArticles.find(a => a.id === parseInt(props.id));
-  if (foundArticle) {
-    article.value = foundArticle;
-    form.title = foundArticle.title;
-    form.excerpt = foundArticle.excerpt;
-    form.content = foundArticle.content;
-    form.category = foundArticle.category;
-    form.published_at = new Date(foundArticle.publishedAt).toISOString().slice(0, 16);
-    form.author = foundArticle.author;
-    form.status = foundArticle.status;
-    form.isFeatured = foundArticle.isFeatured || false;
-    
-    // If article has existing image, set preview
-    if (foundArticle.image) {
-      imagePreview.value = foundArticle.image;
-    }
-  }
-});
+// Image preview
+const imagePreview = ref<string | null>(props.article.image_url);
+const imageFileInput = ref<HTMLInputElement>();
 
-const handleImageChange = (event: Event) => {
+// Delete dialog state
+const deleteDialogOpen = ref(false);
+const deleting = ref(false);
+
+// Handle image selection
+const handleImageSelect = (event: Event) => {
   const target = event.target as HTMLInputElement;
-  if (target.files && target.files[0]) {
-    form.image = target.files[0];
+  const file = target.files?.[0];
+  
+  if (file) {
+    form.image = file;
     
     // Create preview
     const reader = new FileReader();
     reader.onload = (e) => {
       imagePreview.value = e.target?.result as string;
     };
-    reader.readAsDataURL(target.files[0]);
+    reader.readAsDataURL(file);
   }
 };
 
+// Remove image
 const removeImage = () => {
   form.image = null;
   imagePreview.value = null;
+  if (imageFileInput.value) {
+    imageFileInput.value.value = '';
+  }
 };
 
+// Handle form submission - Use POST with _method=PUT
 const submit = () => {
-  // In real app, this would be a PUT request to update the article
-  form.put(`/news/${props.id}`, {
+  form.post(`/news/${props.article.id}`, {
+    preserveScroll: true,
     onSuccess: () => {
-      router.visit(news().url);
+      toast.success('Article updated successfully!');
     },
     onError: (errors) => {
-      console.error('Error updating news:', errors);
+      toast.error('Failed to update article. Please check the form.');
     },
-    preserveScroll: true,
   });
+};
+
+// Handle back to news list
+const handleBackToList = () => {
+  router.get('/news');
+};
+
+// Handle back to show page
+const handleBackToArticle = () => {
+  router.get(`/news/${props.article.id}`);
+};
+
+// Delete news article using Inertia
+const deleteNews = async () => {
+  deleting.value = true;
+  try {
+    router.delete(`/news/${props.article.id}`, {
+      preserveScroll: false,
+      onSuccess: () => {
+        toast.success('Article deleted successfully!');
+        router.get('/news');
+      },
+      onError: (errors) => {
+        const errorMsg = errors.message || 'Failed to delete article';
+        toast.error(errorMsg);
+        deleting.value = false;
+        deleteDialogOpen.value = false;
+      },
+    });
+  } catch (err) {
+    console.error('Failed to delete article:', err);
+    const errorMsg = err instanceof Error ? err.message : 'Failed to delete article';
+    toast.error(errorMsg);
+    deleting.value = false;
+    deleteDialogOpen.value = false;
+  }
+};
+
+// Open delete confirmation dialog
+const openDeleteDialog = () => {
+  deleteDialogOpen.value = true;
 };
 </script>
 
 <template>
-  <Head :title="`Edit: ${form.title}`" />
+  <Head title="Edit News Article" />
 
   <AppLayout :breadcrumbs="breadcrumbs">
-    <div class="flex h-full flex-1 flex-col gap-6 rounded-xl p-4">
+    <div class="flex h-full flex-1 flex-col gap-6 p-6 w-full">
       <!-- Header Section -->
-      <div class="flex items-center justify-between">
-        <div>
-          <h1 class="text-2xl font-bold text-gray-900 dark:text-white">
-            Edit News Article
-          </h1>
-          <p class="mt-1 text-gray-600 dark:text-gray-400">
-            Update and manage your news article
-          </p>
+      <div class="flex items-center justify-between w-full">
+        <div class="w-full">
+          <h1 class="text-3xl font-bold text-foreground">Edit Article</h1>
+          <p class="text-muted-foreground mt-2">Update the news article details</p>
         </div>
         
-        <!-- Article Status Badge -->
-        <div class="flex items-center gap-3">
-          <span 
-            class="inline-flex items-center rounded-full border px-3 py-1 text-sm font-semibold"
-            :class="{
-              'bg-green-100 text-green-800 border-green-200 dark:bg-green-900 dark:text-green-200 dark:border-green-800': form.status === 'published',
-              'bg-yellow-100 text-yellow-800 border-yellow-200 dark:bg-yellow-900 dark:text-yellow-200 dark:border-yellow-800': form.status === 'draft',
-              'bg-red-100 text-red-800 border-red-200 dark:bg-red-900 dark:text-red-200 dark:border-red-800': form.status === 'archived'
-            }"
+        <div class="flex items-center space-x-2">
+          <!-- Back to News List Button -->
+          <Button variant="outline" size="sm" @click="handleBackToList">
+            <ArrowLeft class="h-4 w-4 mr-2" />
+            Back to News
+          </Button>
+          
+          <!-- Back to Article Button -->
+          <Button variant="outline" size="sm" @click="handleBackToArticle">
+            <Eye class="h-4 w-4 mr-2" />
+            View Article
+          </Button>
+          
+          <!-- Save Button -->
+          <Button 
+            size="sm" 
+            @click="submit" 
+            :disabled="form.processing"
           >
-            {{ form.status }}
-          </span>
+            <Save class="h-4 w-4 mr-2" />
+            {{ form.processing ? 'Saving...' : 'Save Changes' }}
+          </Button>
+          
+          <!-- Delete Button -->
+          <Button variant="destructive" size="sm" @click="openDeleteDialog">
+            <Trash2 class="h-4 w-4 mr-2" />
+            Delete
+          </Button>
         </div>
       </div>
 
-      <!-- Form Section -->
-      <div class="grid gap-6 lg:grid-cols-3">
+      <!-- Edit Form -->
+      <div class="grid grid-cols-1 lg:grid-cols-3 gap-6 w-full">
         <!-- Main Form -->
-        <div class="lg:col-span-2">
-          <form @submit.prevent="submit" class="space-y-6">
-            <!-- Title Input -->
-            <div>
-              <label for="title" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                Title *
-              </label>
-              <input
-                id="title"
-                v-model="form.title"
-                type="text"
-                required
-                class="flex h-10 w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-gray-500 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 dark:border-gray-600 dark:bg-gray-700 dark:text-white dark:placeholder:text-gray-400"
-                placeholder="Enter article title"
-              />
-              <p v-if="form.errors.title" class="mt-1 text-sm text-red-600">
-                {{ form.errors.title }}
-              </p>
-            </div>
-
-            <!-- Excerpt Input -->
-            <div>
-              <label for="excerpt" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                Excerpt *
-              </label>
-              <textarea
-                id="excerpt"
-                v-model="form.excerpt"
-                required
-                rows="3"
-                class="flex min-h-[80px] w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm ring-offset-background placeholder:text-gray-500 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 dark:border-gray-600 dark:bg-gray-700 dark:text-white dark:placeholder:text-gray-400"
-                placeholder="Enter brief article excerpt"
-              />
-              <p v-if="form.errors.excerpt" class="mt-1 text-sm text-red-600">
-                {{ form.errors.excerpt }}
-              </p>
-            </div>
-
-            <!-- Content Input -->
-            <div>
-              <label for="content" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                Content *
-              </label>
-              <textarea
-                id="content"
-                v-model="form.content"
-                required
-                rows="8"
-                class="flex min-h-[120px] w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm ring-offset-background placeholder:text-gray-500 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 dark:border-gray-600 dark:bg-gray-700 dark:text-white dark:placeholder:text-gray-400"
-                placeholder="Write your article content here..."
-              />
-              <p v-if="form.errors.content" class="mt-1 text-sm text-red-600">
-                {{ form.errors.content }}
-              </p>
-            </div>
-
-            <!-- Category, Author, and Date -->
-            <div class="grid gap-4 sm:grid-cols-3">
-              <!-- Category Input -->
-              <div>
-                <label for="category" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                  Category *
-                </label>
-                <input
-                  id="category"
-                  v-model="form.category"
+        <div class="lg:col-span-2 space-y-6">
+          <!-- Basic Information Card -->
+          <div class="bg-card rounded-lg border shadow-sm p-6">
+            <h2 class="text-xl font-semibold mb-4">Basic Information</h2>
+            
+            <div class="space-y-4">
+              <!-- Title -->
+              <div class="space-y-2">
+                <Label for="title">Title</Label>
+                <Input
+                  id="title"
+                  v-model="form.title"
                   type="text"
-                  required
-                  class="flex h-10 w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-gray-500 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 dark:border-gray-600 dark:bg-gray-700 dark:text-white dark:placeholder:text-gray-400"
-                  placeholder="Category"
+                  placeholder="Enter article title"
+                  :class="{ 'border-destructive': form.errors.title }"
                 />
-                <p v-if="form.errors.category" class="mt-1 text-sm text-red-600">
-                  {{ form.errors.category }}
+                <p v-if="form.errors.title" class="text-sm text-destructive">
+                  {{ form.errors.title }}
                 </p>
               </div>
 
-              <!-- Author Input -->
-              <div>
-                <label for="author" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                  Author *
-                </label>
-                <input
-                  id="author"
-                  v-model="form.author"
-                  type="text"
-                  required
-                  class="flex h-10 w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-gray-500 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 dark:border-gray-600 dark:bg-gray-700 dark:text-white dark:placeholder:text-gray-400"
-                  placeholder="Author name"
+              <!-- Excerpt -->
+              <div class="space-y-2">
+                <Label for="excerpt">Excerpt</Label>
+                <Textarea
+                  id="excerpt"
+                  v-model="form.excerpt"
+                  placeholder="Brief description of the article"
+                  :class="{ 'border-destructive': form.errors.excerpt }"
+                  rows="3"
                 />
-                <p v-if="form.errors.author" class="mt-1 text-sm text-red-600">
-                  {{ form.errors.author }}
+                <p v-if="form.errors.excerpt" class="text-sm text-destructive">
+                  {{ form.errors.excerpt }}
                 </p>
               </div>
 
-              <!-- Publish Date -->
-              <div>
-                <label for="published_at" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                  Publish Date & Time
-                </label>
-                <input
-                  id="published_at"
-                  v-model="form.published_at"
-                  type="datetime-local"
-                  class="flex h-10 w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-gray-500 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 dark:border-gray-600 dark:bg-gray-700 dark:text-white dark:placeholder:text-gray-400"
+              <!-- Content -->
+              <div class="space-y-2">
+                <Label for="content">Content</Label>
+                <Textarea
+                  id="content"
+                  v-model="form.content"
+                  placeholder="Write your article content here..."
+                  :class="{ 'border-destructive': form.errors.content }"
+                  rows="12"
                 />
+                <p v-if="form.errors.content" class="text-sm text-destructive">
+                  {{ form.errors.content }}
+                </p>
               </div>
             </div>
-
-            <!-- Status and Featured -->
-            <div class="grid gap-4 sm:grid-cols-2">
-              <!-- Status Select -->
-              <div>
-                <label for="status" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                  Status
-                </label>
-                <select
-                  id="status"
-                  v-model="form.status"
-                  class="flex h-10 w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 dark:border-gray-600 dark:bg-gray-700 dark:text-white"
-                >
-                  <option value="draft">Draft</option>
-                  <option value="published">Published</option>
-                  <option value="archived">Archived</option>
-                </select>
-              </div>
-
-              <!-- Featured Checkbox -->
-              <div class="flex items-center space-x-3 pt-6">
-                <input
-                  id="isFeatured"
-                  v-model="form.isFeatured"
-                  type="checkbox"
-                  class="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500 dark:border-gray-600 dark:bg-gray-700"
-                />
-                <label for="isFeatured" class="text-sm font-medium text-gray-700 dark:text-gray-300">
-                  Feature this article
-                </label>
-              </div>
-            </div>
-
-            <!-- Form Actions -->
-            <div class="flex flex-col sm:flex-row justify-end gap-3 pt-6">
-              <button
-                type="button"
-                @click="router.visit(news().url)"
-                class="inline-flex items-center justify-center rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 border border-gray-300 bg-white hover:bg-gray-50 dark:border-gray-600 dark:bg-gray-700 dark:hover:bg-gray-600 h-10 px-4 py-2 text-gray-700 dark:text-gray-300 order-2 sm:order-1"
-              >
-                Cancel
-              </button>
-              <button
-                type="submit"
-                :disabled="form.processing"
-                class="inline-flex items-center justify-center rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 bg-blue-600 text-white hover:bg-blue-700 h-10 px-4 py-2 order-1 sm:order-2"
-              >
-                <span v-if="form.processing">Updating...</span>
-                <span v-else>Update Article</span>
-              </button>
-            </div>
-          </form>
+          </div>
         </div>
 
         <!-- Sidebar -->
         <div class="space-y-6">
-          <!-- Image Upload -->
-          <div class="rounded-lg border border-sidebar-border/70 bg-white p-6 shadow-sm dark:border-sidebar-border dark:bg-gray-800">
-            <h3 class="mb-4 text-lg font-semibold text-gray-900 dark:text-white">
-              Featured Image
-            </h3>
+          <!-- Status & Category Card -->
+          <div class="bg-card rounded-lg border shadow-sm p-6">
+            <h2 class="text-xl font-semibold mb-4">Settings</h2>
             
-            <!-- Image Preview -->
-            <div v-if="imagePreview" class="mb-4">
-              <div class="relative aspect-video overflow-hidden rounded-lg">
-                <img 
-                  :src="imagePreview" 
-                  alt="Preview" 
-                  class="h-full w-full object-cover"
+            <div class="space-y-4">
+              <!-- Category -->
+              <div class="space-y-2">
+                <Label for="category">Category</Label>
+                <Input
+                  id="category"
+                  v-model="form.category"
+                  type="text"
+                  placeholder="e.g., Technology, Sports"
+                  :class="{ 'border-destructive': form.errors.category }"
                 />
-                <button
-                  type="button"
-                  @click="removeImage"
-                  class="absolute right-2 top-2 rounded-full bg-red-600 p-1 text-white hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2"
-                >
-                  <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
-                  </svg>
-                </button>
+                <p v-if="form.errors.category" class="text-sm text-destructive">
+                  {{ form.errors.category }}
+                </p>
+              </div>
+
+              <!-- Status -->
+              <div class="space-y-2">
+                <Label for="status">Status</Label>
+                <Select v-model="form.status">
+                  <SelectTrigger :class="{ 'border-destructive': form.errors.status }">
+                    <SelectValue placeholder="Select status" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="draft">Draft</SelectItem>
+                    <SelectItem value="published">Published</SelectItem>
+                    <SelectItem value="archived">Archived</SelectItem>
+                  </SelectContent>
+                </Select>
+                <p v-if="form.errors.status" class="text-sm text-destructive">
+                  {{ form.errors.status }}
+                </p>
               </div>
             </div>
+          </div>
 
-            <!-- Upload Area -->
-            <div 
-              v-if="!imagePreview"
-              class="border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-lg p-6 text-center transition-colors hover:border-gray-400 dark:hover:border-gray-500"
-            >
-              <svg class="mx-auto h-12 w-12 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
-              </svg>
-              <div class="mt-4">
-                <label for="image-upload" class="cursor-pointer inline-flex items-center justify-center rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 bg-blue-600 text-white hover:bg-blue-700 h-10 px-4 py-2">
-                  Upload Image
-                </label>
-                <input
-                  id="image-upload"
+          <!-- Featured Image Card -->
+          <div class="bg-card rounded-lg border shadow-sm p-6">
+            <h2 class="text-xl font-semibold mb-4">Featured Image</h2>
+            
+            <div class="space-y-4">
+              <!-- Image Preview -->
+              <div v-if="imagePreview" class="relative">
+                <img
+                  :src="imagePreview"
+                  alt="Featured image preview"
+                  class="w-full h-48 object-cover rounded-lg"
+                />
+                <Button
+                  type="button"
+                  variant="destructive"
+                  size="sm"
+                  class="absolute top-2 right-2"
+                  @click="removeImage"
+                >
+                  Remove
+                </Button>
+              </div>
+
+              <!-- Image Upload -->
+              <div class="space-y-2">
+                <Label for="image">Upload Image</Label>
+                <Input
+                  id="image"
+                  ref="imageFileInput"
                   type="file"
                   accept="image/*"
-                  @change="handleImageChange"
-                  class="hidden"
+                  @change="handleImageSelect"
+                  :class="{ 'border-destructive': form.errors.image }"
                 />
-              </div>
-              <p class="mt-2 text-xs text-gray-500 dark:text-gray-400">
-                PNG, JPG, GIF up to 10MB
-              </p>
-            </div>
-          </div>
-
-          <!-- Article Information -->
-          <div class="rounded-lg border border-sidebar-border/70 bg-white p-6 shadow-sm dark:border-sidebar-border dark:bg-gray-800">
-            <h3 class="mb-4 text-lg font-semibold text-gray-900 dark:text-white">
-              Article Information
-            </h3>
-            <div class="space-y-3 text-sm">
-              <div class="flex justify-between">
-                <span class="text-gray-600 dark:text-gray-400">Article ID:</span>
-                <span class="font-medium text-gray-900 dark:text-white">{{ props.id }}</span>
-              </div>
-              <div class="flex justify-between">
-                <span class="text-gray-600 dark:text-gray-400">Created:</span>
-                <span class="font-medium text-gray-900 dark:text-white" v-if="article">
-                  {{ new Date(article.publishedAt).toLocaleDateString() }}
-                </span>
-              </div>
-              <div class="flex justify-between">
-                <span class="text-gray-600 dark:text-gray-400">Last Updated:</span>
-                <span class="font-medium text-gray-900 dark:text-white">Just now</span>
-              </div>
-              <div class="flex justify-between">
-                <span class="text-gray-600 dark:text-gray-400">Word Count:</span>
-                <span class="font-medium text-gray-900 dark:text-white">
-                  {{ form.content.split(/\s+/).filter(word => word.length > 0).length }} words
-                </span>
+                <p class="text-sm text-muted-foreground">
+                  Recommended size: 1200x630px. Max 2MB.
+                </p>
+                <p v-if="form.errors.image" class="text-sm text-destructive">
+                  {{ form.errors.image }}
+                </p>
               </div>
             </div>
           </div>
 
-          <!-- Publishing Tips -->
-          <div class="rounded-lg border border-sidebar-border/70 bg-white p-6 shadow-sm dark:border-sidebar-border dark:bg-gray-800">
-            <h3 class="mb-3 text-lg font-semibold text-gray-900 dark:text-white">
-              Editing Tips
-            </h3>
-            <ul class="space-y-3 text-sm text-gray-600 dark:text-gray-300">
-              <li class="flex items-start gap-3">
-                <svg class="h-5 w-5 text-blue-500 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                </svg>
-                <span>Update the publish date if this is a significant revision</span>
-              </li>
-              <li class="flex items-start gap-3">
-                <svg class="h-5 w-5 text-blue-500 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                </svg>
-                <span>Consider changing status to "draft" while making major changes</span>
-              </li>
-              <li class="flex items-start gap-3">
-                <svg class="h-5 w-5 text-blue-500 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                </svg>
-                <span>Review SEO and meta descriptions after content changes</span>
-              </li>
-            </ul>
-          </div>
-
-          <!-- Status Guide -->
-          <div class="rounded-lg border border-sidebar-border/70 bg-white p-6 shadow-sm dark:border-sidebar-border dark:bg-gray-800">
-            <h3 class="mb-3 text-lg font-semibold text-gray-900 dark:text-white">
-              Status Guide
-            </h3>
+          <!-- Article Info -->
+          <div class="bg-card rounded-lg border shadow-sm p-6">
+            <h2 class="text-xl font-semibold mb-4">Article Information</h2>
+            
             <div class="space-y-3 text-sm">
-              <div class="flex items-center gap-2">
-                <span class="inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-semibold border-transparent bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200">
-                  Published
-                </span>
-                <span class="text-gray-600 dark:text-gray-300">Visible to all users</span>
+              <div class="flex justify-between">
+                <span class="text-muted-foreground">Author:</span>
+                <span>{{ article.author.name }}</span>
               </div>
-              <div class="flex items-center gap-2">
-                <span class="inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-semibold border-transparent bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200">
-                  Draft
-                </span>
-                <span class="text-gray-600 dark:text-gray-300">Only visible to editors</span>
+              <div class="flex justify-between">
+                <span class="text-muted-foreground">Created:</span>
+                <span>{{ new Date(article.created_at).toLocaleDateString() }}</span>
               </div>
-              <div class="flex items-center gap-2">
-                <span class="inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-semibold border-transparent bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200">
-                  Archived
-                </span>
-                <span class="text-gray-600 dark:text-gray-300">Hidden from public view</span>
+              <div class="flex justify-between">
+                <span class="text-muted-foreground">Last Updated:</span>
+                <span>{{ new Date(article.updated_at).toLocaleDateString() }}</span>
+              </div>
+              <div v-if="article.published_at" class="flex justify-between">
+                <span class="text-muted-foreground">Published:</span>
+                <span>{{ new Date(article.published_at).toLocaleDateString() }}</span>
+              </div>
+              <div class="flex justify-between items-center">
+                <span class="text-muted-foreground">Featured:</span>
+                <Badge :variant="article.is_featured ? 'default' : 'secondary'">
+                  {{ article.is_featured ? 'Yes' : 'No' }}
+                </Badge>
               </div>
             </div>
           </div>
         </div>
       </div>
     </div>
+
+    <!-- Delete Confirmation Dialog -->
+    <AlertDialog v-model:open="deleteDialogOpen">
+      <AlertDialogContent>
+        <AlertDialogHeader>
+          <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
+          <AlertDialogDescription>
+            This action cannot be undone. This will permanently delete the news article
+            "{{ article.title }}" and remove it from our servers.
+          </AlertDialogDescription>
+        </AlertDialogHeader>
+        <AlertDialogFooter>
+          <AlertDialogCancel :disabled="deleting" @click="deleteDialogOpen = false">
+            Cancel
+          </AlertDialogCancel>
+          <AlertDialogAction 
+            @click="deleteNews"
+            class="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            :disabled="deleting"
+          >
+            <div v-if="deleting" class="flex items-center space-x-2">
+              <div class="animate-spin rounded-full h-3 w-3 border-b-2 border-white"></div>
+              <span>Deleting...</span>
+            </div>
+            <span v-else>Delete Article</span>
+          </AlertDialogAction>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
   </AppLayout>
 </template>
