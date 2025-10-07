@@ -7,6 +7,7 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 use Laravel\Fortify\TwoFactorAuthenticatable;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class User extends Authenticatable
 {
@@ -86,5 +87,26 @@ class User extends Authenticatable
     public function newsArticles()
     {
         return $this->hasMany(News::class, 'author_id');
+    }
+
+    /**
+     * Relationship with activities
+     */
+    public function activities(): HasMany
+    {
+        return $this->hasMany(Activity::class);
+    }
+
+    /**
+     * Log an activity for this user.
+     */
+    public function logActivity(string $description, string $type, array $metadata = []): Activity
+    {
+        return Activity::create([
+            'description' => $description,
+            'type' => $type,
+            'metadata' => $metadata,
+            'user_id' => $this->id,
+        ]);
     }
 }

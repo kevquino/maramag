@@ -3,307 +3,263 @@
 namespace App\Http\Controllers;
 
 use App\Models\News;
+use App\Models\Activity;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
-use Illuminate\Support\Str;
+use Inertia\Response;
 use Illuminate\Support\Facades\Storage;
-use Illuminate\Support\Facades\Validator;
 
 class NewsController extends Controller
 {
-    public function index(Request $request)
+    /**
+     * Display a listing of the resource.
+     */
+    public function index(Request $request): Response
     {
-        // Only users who can manage news can access the index page
-        if (!auth()->user()->canManageNews()) {
-            abort(403, 'Unauthorized action.');
+        $query = News::with('author')->latest();
+
+        // Apply search filter
+        if ($request->has('search') && $request->search) {
+            $query->where('title', 'like', '%' . $request->search . '%')
+                  ->orWhere('content', 'like', '%' . $request->search . '%')
+                  ->orWhere('excerpt', 'like', '%' . $request->search . '%');
         }
 
-        $news = News::with('author')
-            ->when($request->search, function ($query, $search) {
-                $query->where('title', 'like', "%{$search}%")
-                      ->orWhere('excerpt', 'like', "%{$search}%")
-                      ->orWhere('content', 'like', "%{$search}%");
-            })
-            ->when($request->status, function ($query, $status) {
-                $query->where('status', $status);
-            })
-            ->when($request->category, function ($query, $category) {
-                $query->where('category', 'like', "%{$category}%");
-            })
-            ->latest()
-            ->paginate(10)
-            ->withQueryString();
+        // Apply status filter
+        if ($request->has('status') && $request->status) {
+            $query->where('status', $request->status);
+        }
+
+        // Apply category filter
+        if ($request->has('category') && $request->category) {
+            $query->where('category', $request->category);
+        }
+
+        $news = $query->paginate(10);
 
         return Inertia::render('News/Index', [
             'news' => $news,
             'filters' => $request->only(['search', 'status', 'category']),
-            'flash' => [
-                'success' => session('success'),
-                'error' => session('error'),
-            ],
         ]);
     }
 
-    public function create()
+    /**
+     * Show the form for creating a new resource.
+     */
+    public function create(): Response
     {
-        if (!auth()->user()->canManageNews()) {
-            abort(403, 'Unauthorized action.');
-        }
-
-        return Inertia::render('News/Create', [
-            'flash' => [
-                'success' => session('success'),
-                'error' => session('error'),
-            ],
-        ]);
+        return Inertia::render('News/Create');
     }
 
+    /**
+     * Store a newly created resource in storage.
+     */
     public function store(Request $request)
     {
-        if (!auth()->user()->canManageNews()) {
-            abort(403, 'Unauthorized action.');
-        }
-
-        $validator = Validator::make($request->all(), [
+        $validated = $request->validate([
             'title' => 'required|string|max:255',
             'excerpt' => 'nullable|string|max:500',
             'content' => 'required|string',
-            'category' => 'required|string|max:100',
-            'status' => 'required|in:draft,published,archived',
-            'image' => 'nullable|image|mimes:jpeg,png,jpg,gif|max:2048',
+            'category' => 'required|string',
+            'status' => 'required|string|in:draft,published',
+            'is_featured' => 'boolean',
+            'published_at' => 'nullable|date',
+            'image' => 'nullable|image|mimes:jpeg,png,jpg,gif,webp|max:10240',
         ]);
 
-        if ($validator->fails()) {
-            return redirect()->back()
-                ->withErrors($validator)
-                ->withInput()
-                ->with('error', 'Please fix the errors below.');
+        // Create the news article with a default slug
+        $news = News::create([
+            'title' => $validated['title'],
+            'slug' => 'temp-slug-' . uniqid(), // Temporary slug
+            'excerpt' => $validated['excerpt'] ?? '',
+            'content' => $validated['content'],
+            'category' => $validated['category'],
+            'status' => $validated['status'],
+            'is_featured' => $validated['is_featured'] ?? false,
+            'published_at' => $validated['published_at'] ?? null,
+            'author_id' => auth()->id(),
+        ]);
+
+        // Handle image upload
+        if ($request->hasFile('image')) {
+            $imagePath = $request->file('image')->store('news-images', 'public');
+            $news->update(['image_path' => $imagePath]);
         }
 
-        $validated = $validator->validated();
+        // Log activity
+        Activity::create([
+            'description' => "New article created: {$news->title}",
+            'type' => 'news',
+            'user_id' => auth()->id(),
+            'metadata' => [
+                'news_id' => $news->id,
+                'title' => $news->title,
+                'action' => 'created'
+            ]
+        ]);
 
-        try {
-            $news = News::create([
-                'title' => $validated['title'],
-                'slug' => Str::slug($validated['title']),
-                'excerpt' => $validated['excerpt'] ?? null,
-                'content' => $validated['content'],
-                'category' => $validated['category'],
-                'status' => $validated['status'],
-                'author_id' => auth()->id(),
-                'published_at' => $validated['status'] === 'published' ? now() : null,
-                'is_featured' => false,
-            ]);
-
-            if ($request->hasFile('image')) {
-                $imagePath = $request->file('image')->store('news-images', 'public');
-                $news->update([
-                    'image_path' => $imagePath
-                ]);
-            }
-
-            return redirect()->route('news.index')
-                ->with('success', 'Article created successfully!');
-
-        } catch (\Exception $e) {
-            \Log::error('News creation failed: ' . $e->getMessage());
-            return redirect()->back()
-                ->withInput()
-                ->with('error', 'Failed to create article. Please try again.');
-        }
+        return redirect()->route('news.index')->with('success', 'News created successfully.');
     }
 
-    public function show(News $news)
+    /**
+     * Display the specified resource.
+     */
+    public function show(News $news): Response
     {
-        $news->load('author');
-        
         return Inertia::render('News/Show', [
-            'article' => $news,
-            'flash' => [
-                'success' => session('success'),
-                'error' => session('error'),
-            ],
+            'news' => $news->load('author'),
         ]);
     }
 
-    public function edit(News $news)
+    /**
+     * Show the form for editing the specified resource.
+     */
+    public function edit(News $news): Response
     {
-        if (!auth()->user()->canManageNews()) {
-            abort(403, 'Unauthorized action.');
-        }
-
-        // PIO Staff can only edit their own articles, Admins and PIO Officers can edit all
-        if (auth()->user()->isPioStaff() && $news->author_id !== auth()->id()) {
-            abort(403, 'You can only edit your own articles.');
-        }
-
-        $news->load('author');
-
         return Inertia::render('News/Edit', [
-            'article' => $news,
-            'flash' => [
-                'success' => session('success'),
-                'error' => session('error'),
-            ],
+            'article' => $news->load('author'),
         ]);
     }
 
+    /**
+     * Update the specified resource in storage.
+     */
     public function update(Request $request, News $news)
     {
-        if (!auth()->user()->canManageNews()) {
-            abort(403, 'Unauthorized action.');
-        }
-
-        // PIO Staff can only update their own articles
-        if (auth()->user()->isPioStaff() && $news->author_id !== auth()->id()) {
-            abort(403, 'You can only update your own articles.');
-        }
-
-        $validator = Validator::make($request->all(), [
+        $validated = $request->validate([
             'title' => 'required|string|max:255',
             'excerpt' => 'nullable|string|max:500',
             'content' => 'required|string',
-            'category' => 'required|string|max:100',
-            'status' => 'required|in:draft,published,archived',
-            'image' => 'nullable|image|mimes:jpeg,png,jpg,gif|max:2048',
-            'remove_existing_image' => 'nullable|boolean',
+            'category' => 'required|string',
+            'status' => 'required|string|in:draft,published,archived',
+            'is_featured' => 'boolean', // Added this line
+            'published_at' => 'nullable|date', // Added this line
+            'image' => 'nullable|image|mimes:jpeg,png,jpg,gif,webp|max:10240',
+            'remove_existing_image' => 'boolean',
         ]);
 
-        if ($validator->fails()) {
-            return redirect()->back()
-                ->withErrors($validator)
-                ->withInput()
-                ->with('error', 'Please fix the errors below.');
-        }
+        // Update the news article - include is_featured and published_at
+        $news->update([
+            'title' => $validated['title'],
+            'excerpt' => $validated['excerpt'] ?? '',
+            'content' => $validated['content'],
+            'category' => $validated['category'],
+            'status' => $validated['status'],
+            'is_featured' => $validated['is_featured'] ?? false, // Added this line
+            'published_at' => $validated['published_at'] ?? null, // Added this line
+        ]);
 
-        $validated = $validator->validated();
-
-        try {
-            $updateData = [
-                'title' => $validated['title'],
-                'slug' => Str::slug($validated['title']),
-                'excerpt' => $validated['excerpt'] ?? null,
-                'content' => $validated['content'],
-                'category' => $validated['category'],
-                'status' => $validated['status'],
-                'published_at' => $validated['status'] === 'published' 
-                    ? ($news->published_at ?? now()) 
-                    : null,
-            ];
-
-            // Handle image removal
-            if ($request->boolean('remove_existing_image') && $news->image_path) {
+        // Handle image upload/removal
+        if ($request->boolean('remove_existing_image')) {
+            // Remove existing image
+            if ($news->image_path) {
                 Storage::disk('public')->delete($news->image_path);
-                $updateData['image_path'] = null;
+                $news->update(['image_path' => null]);
             }
-
-            $news->update($updateData);
-
-            // Handle new image upload
-            if ($request->hasFile('image')) {
-                // Delete old image if exists
-                if ($news->image_path) {
-                    Storage::disk('public')->delete($news->image_path);
-                }
-                
-                $imagePath = $request->file('image')->store('news-images', 'public');
-                $news->update(['image_path' => $imagePath]);
-            }
-
-            return redirect()->route('news.index')
-                ->with('success', 'Article updated successfully!');
-
-        } catch (\Exception $e) {
-            \Log::error('News update failed: ' . $e->getMessage());
-            return redirect()->back()
-                ->withInput()
-                ->with('error', 'Failed to update article. Please try again.');
-        }
-    }
-
-    public function destroy(News $news)
-    {
-        if (!auth()->user()->canManageNews()) {
-            abort(403, 'Unauthorized action.');
-        }
-
-        // PIO Staff can only delete their own articles
-        if (auth()->user()->isPioStaff() && $news->author_id !== auth()->id()) {
-            abort(403, 'You can only delete your own articles.');
-        }
-
-        try {
-            // Delete image if exists
+        } elseif ($request->hasFile('image')) {
+            // Remove old image if exists
             if ($news->image_path) {
                 Storage::disk('public')->delete($news->image_path);
             }
             
-            $news->delete();
-
-            return redirect()->route('news.index')
-                ->with('success', 'Article deleted successfully!');
-
-        } catch (\Exception $e) {
-            \Log::error('News deletion failed: ' . $e->getMessage());
-            return redirect()->route('news.index')
-                ->with('error', 'Failed to delete article. Please try again.');
-        }
-    }
-
-    public function updateStatus(Request $request, News $news)
-    {
-        if (!auth()->user()->canManageNews()) {
-            abort(403, 'Unauthorized action.');
+            // Store new image
+            $imagePath = $request->file('image')->store('news-images', 'public');
+            $news->update(['image_path' => $imagePath]);
         }
 
-        // PIO Staff can only update status of their own articles
-        if (auth()->user()->isPioStaff() && $news->author_id !== auth()->id()) {
-            abort(403, 'You can only update the status of your own articles.');
-        }
-
-        $validator = Validator::make($request->all(), [
-            'status' => 'required|in:draft,published,archived',
+        // Log activity
+        Activity::create([
+            'description' => "Article updated: {$news->title}",
+            'type' => 'news',
+            'user_id' => auth()->id(),
+            'metadata' => [
+                'news_id' => $news->id,
+                'title' => $news->title,
+                'action' => 'updated'
+            ]
         ]);
 
-        if ($validator->fails()) {
-            return back()->with('error', 'Invalid status provided.');
-        }
-
-        $validated = $validator->validated();
-
-        try {
-            $news->update([
-                'status' => $validated['status'],
-                'published_at' => $validated['status'] === 'published' 
-                    ? ($news->published_at ?? now()) 
-                    : null,
-            ]);
-
-            return back()->with('success', 'Status updated successfully!');
-
-        } catch (\Exception $e) {
-            \Log::error('News status update failed: ' . $e->getMessage());
-            return back()->with('error', 'Failed to update status. Please try again.');
-        }
+        return redirect()->route('news.index')->with('success', 'News updated successfully.');
     }
 
-    public function toggleFeatured(Request $request, News $news)
+    /**
+     * Remove the specified resource from storage.
+     */
+    public function destroy(News $news)
     {
-        // Only Admins and PIO Officers can feature articles (not PIO Staff)
-        if (!auth()->user()->isAdmin() && !auth()->user()->isPioOfficer()) {
-            abort(403, 'Unauthorized action. Only admins and PIO officers can feature articles.');
+        $newsTitle = $news->title;
+        
+        // Delete image if exists
+        if ($news->image_path) {
+            Storage::disk('public')->delete($news->image_path);
         }
+        
+        $news->delete();
 
-        try {
-            $news->update([
-                'is_featured' => !$news->is_featured,
-            ]);
+        // Log activity
+        Activity::create([
+            'description' => "Article deleted: {$newsTitle}",
+            'type' => 'news',
+            'user_id' => auth()->id(),
+            'metadata' => [
+                'news_id' => $news->id,
+                'title' => $newsTitle,
+                'action' => 'deleted'
+            ]
+        ]);
 
-            return back()->with('success', 'Feature status updated!');
+        return redirect()->route('news.index')->with('success', 'News deleted successfully.');
+    }
 
-        } catch (\Exception $e) {
-            \Log::error('News feature toggle failed: ' . $e->getMessage());
-            return back()->with('error', 'Failed to toggle feature status. Please try again.');
-        }
+    /**
+     * Update news status.
+     */
+    public function updateStatus(Request $request, News $news)
+    {
+        $validated = $request->validate([
+            'status' => 'required|string|in:draft,published',
+        ]);
+
+        $news->update(['status' => $validated['status']]);
+
+        // Log activity
+        Activity::create([
+            'description' => "Article status changed to {$validated['status']}: {$news->title}",
+            'type' => 'news',
+            'user_id' => auth()->id(),
+            'metadata' => [
+                'news_id' => $news->id,
+                'title' => $news->title,
+                'action' => 'status_updated',
+                'status' => $validated['status']
+            ]
+        ]);
+
+        return back()->with('success', 'News status updated successfully.');
+    }
+
+    /**
+     * Toggle featured status.
+     */
+    public function toggleFeatured(News $news)
+    {
+        $news->update(['is_featured' => !$news->is_featured]);
+
+        $status = $news->is_featured ? 'featured' : 'unfeatured';
+
+        // Log activity
+        Activity::create([
+            'description' => "Article {$status}: {$news->title}",
+            'type' => 'news',
+            'user_id' => auth()->id(),
+            'metadata' => [
+                'news_id' => $news->id,
+                'title' => $news->title,
+                'action' => 'featured_toggled',
+                'is_featured' => $news->is_featured
+            ]
+        ]);
+
+        return back()->with('success', 'News featured status updated successfully.');
     }
 }

@@ -3,7 +3,7 @@ import AppLayout from '@/layouts/AppLayout.vue';
 import { dashboard } from '@/routes';
 import { type BreadcrumbItem } from '@/types';
 import { Head, router, useForm } from '@inertiajs/vue3';
-import { ArrowLeft, Save, Upload, Trash2, List, Eye } from 'lucide-vue-next';
+import { ArrowLeft, Save, Upload, Trash2, Eye, Star } from 'lucide-vue-next';
 import { ref } from 'vue';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -17,6 +17,7 @@ import {
 } from '@/components/ui/select';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
+import { Toggle } from '@/components/ui/toggle';
 import { toast } from 'vue-sonner';
 import {
   AlertDialog,
@@ -85,14 +86,15 @@ const breadcrumbs: BreadcrumbItem[] = [
 
 // Form handling - Use POST method with _method field
 const form = useForm({
-  _method: 'PUT', // This tells Laravel to treat it as PUT
+  _method: 'PUT',
   title: props.article.title,
   excerpt: props.article.excerpt,
   content: props.article.content,
   category: props.article.category,
   status: props.article.status,
+  is_featured: props.article.is_featured,
   image: null as File | null,
-  remove_existing_image: false, // Add this field
+  remove_existing_image: false,
 });
 
 // Image preview
@@ -210,9 +212,9 @@ const openDeleteDialog = () => {
         </div>
       </div>
 
-      <!-- Edit Form with Image Preview on Right -->
+      <!-- Edit Form with Text on Left, Image and Settings on Right -->
       <div class="flex flex-col lg:flex-row gap-6 w-full">
-        <!-- Main Form Content -->
+        <!-- Text Content on Left -->
         <div class="flex-1 space-y-4 md:space-y-6">
           <!-- Basic Information Card -->
           <div class="bg-card rounded-lg border shadow-sm p-4 md:p-6">
@@ -265,70 +267,22 @@ const openDeleteDialog = () => {
               </div>
             </div>
           </div>
-
-          <!-- Settings Card -->
-          <div class="bg-card rounded-lg border shadow-sm p-4 md:p-6">
-            <h2 class="text-lg md:text-xl font-semibold mb-4">Settings</h2>
-            
-            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <!-- Category -->
-              <div class="space-y-2">
-                <Label for="category">Category</Label>
-                <Select v-model="form.category">
-                  <SelectTrigger :class="{ 'border-destructive': form.errors.category }">
-                    <SelectValue placeholder="Select a category" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem 
-                      v-for="category in categories" 
-                      :key="category" 
-                      :value="category"
-                    >
-                      {{ category }}
-                    </SelectItem>
-                  </SelectContent>
-                </Select>
-                <p v-if="form.errors.category" class="text-sm text-destructive">
-                  {{ form.errors.category }}
-                </p>
-                
-              </div>
-
-              <!-- Status -->
-              <div class="space-y-2">
-                <Label for="status">Status</Label>
-                <Select v-model="form.status">
-                  <SelectTrigger :class="{ 'border-destructive': form.errors.status }">
-                    <SelectValue placeholder="Select status" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="draft">Draft</SelectItem>
-                    <SelectItem value="published">Published</SelectItem>
-                    <SelectItem value="archived">Archived</SelectItem>
-                  </SelectContent>
-                </Select>
-                <p v-if="form.errors.status" class="text-sm text-destructive">
-                  {{ form.errors.status }}
-                </p>
-              </div>
-            </div>
-          </div>
         </div>
 
-        <!-- Sidebar with Image Preview and Article Info -->
-        <div class="lg:w-80 xl:w-96 flex-shrink-0 space-y-4 md:space-y-6">
+        <!-- Right Sidebar with Featured Image and Settings -->
+        <div class="lg:w-96 flex-shrink-0 space-y-6">
           <!-- Featured Image Card -->
           <div class="bg-card rounded-lg border shadow-sm p-4 md:p-6">
             <h2 class="text-lg md:text-xl font-semibold mb-4">Featured Image</h2>
             
             <div class="space-y-4">
-              <!-- Square Image Preview -->
+              <!-- Full Thumbnail Image Preview -->
               <div v-if="imagePreview" class="relative">
-                <div class="aspect-square w-full overflow-hidden rounded-lg border">
+                <div class="w-full overflow-hidden rounded-lg border">
                   <img
                     :src="imagePreview"
                     alt="Featured image preview"
-                    class="w-full h-full object-cover"
+                    class="w-full h-auto max-h-80 object-cover"
                   />
                 </div>
                 <Button
@@ -343,8 +297,8 @@ const openDeleteDialog = () => {
               </div>
 
               <!-- No Image State -->
-              <div v-else class="aspect-square w-full border-2 border-dashed border-muted-foreground/25 rounded-lg flex flex-col items-center justify-center text-muted-foreground p-4">
-                <Upload class="h-8 w-8 mb-2 opacity-50" />
+              <div v-else class="w-full border-2 border-dashed border-muted-foreground/25 rounded-lg flex flex-col items-center justify-center text-muted-foreground p-8 py-12">
+                <Upload class="h-12 w-12 mb-4 opacity-50" />
                 <p class="text-sm text-center">No image selected</p>
                 <p class="text-xs text-center mt-1">Upload an image to preview</p>
               </div>
@@ -361,7 +315,7 @@ const openDeleteDialog = () => {
                   :class="{ 'border-destructive': form.errors.image }"
                 />
                 <p class="text-sm text-muted-foreground">
-                  Recommended: Square aspect ratio. Max 2MB.
+                  Recommended: 16:9 aspect ratio. Max 2MB.
                 </p>
                 <p v-if="form.errors.image" class="text-sm text-destructive">
                   {{ form.errors.image }}
@@ -377,59 +331,83 @@ const openDeleteDialog = () => {
             </div>
           </div>
 
-          <!-- Article Info -->
+          <!-- Settings Card - Moved below Featured Image -->
           <div class="bg-card rounded-lg border shadow-sm p-4 md:p-6">
-            <h2 class="text-lg md:text-xl font-semibold mb-4">Article Information</h2>
             
-            <div class="space-y-3 text-sm">
-              <div class="flex justify-between">
-                <span class="text-muted-foreground">Author:</span>
-                <span>{{ article.author.name }}</span>
+            <div class="space-y-4">
+              <!-- Featured Toggle - First -->
+              <div class="space-y-2">
+                <Label class="text-base font-medium">Featured Article</Label>
+                <div class="flex items-center justify-between p-1 border rounded-lg bg-muted/50">
+                  
+                  <div class="flex items-center space-x-2">
+                    <Toggle 
+                    :pressed="form.is_featured"
+                    @click="form.is_featured = !form.is_featured"
+                    aria-label="Toggle featured"
+                    :class="form.is_featured ? 'bg-primary text-primary-foreground' : ''"
+                  >
+                    <Star class="h-4 w-4" :class="form.is_featured ? 'text-yellow-500 fill-yellow-500' : 'text-muted-foreground'" />
+                  </Toggle>
+                    
+                    <span>Mark as featured</span>
+                    
+                  </div>
+                  
+                </div>
+                <p class="text-sm text-muted-foreground">
+                  Featured articles are highlighted on the news page
+                </p>
+                <p v-if="form.errors.is_featured" class="text-sm text-destructive">
+                  {{ form.errors.is_featured }}
+                </p>
               </div>
-              <div class="flex justify-between">
-                <span class="text-muted-foreground">Created:</span>
-                <span>{{ new Date(article.created_at).toLocaleDateString() }}</span>
+
+              <!-- Category - Full Width -->
+              <div class="space-y-2">
+                <Label for="category">Category</Label>
+                <Select v-model="form.category">
+                  <SelectTrigger class="w-full" :class="{ 'border-destructive': form.errors.category }">
+                    <SelectValue placeholder="Select a category" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem 
+                      v-for="category in categories" 
+                      :key="category" 
+                      :value="category"
+                    >
+                      {{ category }}
+                    </SelectItem>
+                  </SelectContent>
+                </Select>
+                <p v-if="form.errors.category" class="text-sm text-destructive">
+                  {{ form.errors.category }}
+                </p>
               </div>
-              <div class="flex justify-between">
-                <span class="text-muted-foreground">Last Updated:</span>
-                <span>{{ new Date(article.updated_at).toLocaleDateString() }}</span>
-              </div>
-              <div v-if="article.published_at" class="flex justify-between">
-                <span class="text-muted-foreground">Published:</span>
-                <span>{{ new Date(article.published_at).toLocaleDateString() }}</span>
-              </div>
-              <div class="flex justify-between items-center">
-                <span class="text-muted-foreground">Featured:</span>
-                <Badge :variant="article.is_featured ? 'default' : 'secondary'">
-                  {{ article.is_featured ? 'Yes' : 'No' }}
-                </Badge>
-              </div>
-              <div class="flex justify-between items-center">
-                <span class="text-muted-foreground">Category:</span>
-                <Badge variant="outline">
-                  {{ article.category }}
-                </Badge>
-              </div>
-              <div class="flex justify-between items-center">
-                <span class="text-muted-foreground">Status:</span>
-                <Badge 
-                  :variant="
-                    article.status === 'published' 
-                      ? 'default' 
-                      : article.status === 'draft' 
-                      ? 'secondary' 
-                      : 'destructive'
-                  "
-                >
-                  {{ article.status.charAt(0).toUpperCase() + article.status.slice(1) }}
-                </Badge>
+
+              <!-- Status - Full Width -->
+              <div class="space-y-2">
+                <Label for="status">Status</Label>
+                <Select v-model="form.status">
+                  <SelectTrigger class="w-full" :class="{ 'border-destructive': form.errors.status }">
+                    <SelectValue placeholder="Select status" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="draft">Draft</SelectItem>
+                    <SelectItem value="published">Published</SelectItem>
+                    <SelectItem value="archived">Archived</SelectItem>
+                  </SelectContent>
+                </Select>
+                <p v-if="form.errors.status" class="text-sm text-destructive">
+                  {{ form.errors.status }}
+                </p>
               </div>
             </div>
           </div>
         </div>
       </div>
 
-      <!-- Action Buttons - Normal size at bottom -->
+      <!-- Action Buttons -->
       <div class="flex flex-col sm:flex-row items-center justify-between gap-4 mt-8 p-4 bg-card rounded-lg border shadow-sm">
         <!-- Navigation Buttons -->
         <div class="flex flex-wrap gap-2">
@@ -499,18 +477,13 @@ const openDeleteDialog = () => {
 </template>
 
 <style scoped>
-/* Ensure the image container maintains square aspect ratio */
-.aspect-square {
-  aspect-ratio: 1 / 1;
-}
-
 /* Responsive adjustments for smaller screens */
 @media (max-width: 1024px) {
   .flex-col.lg\:flex-row {
     flex-direction: column;
   }
   
-  .lg\:w-80, .xl\:w-96 {
+  .lg\:w-96 {
     width: 100%;
     max-width: 400px;
     margin: 0 auto;

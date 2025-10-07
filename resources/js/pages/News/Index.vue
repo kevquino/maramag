@@ -53,7 +53,7 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog"
 
-// Props from Inertia
+// Props from Inertia with default values
 const props = defineProps<{
   news: {
     data: any[]
@@ -62,7 +62,7 @@ const props = defineProps<{
     per_page: number
     total: number
   }
-  filters: {
+  filters?: {
     search?: string
     status?: string
     category?: string
@@ -116,7 +116,9 @@ const loading = ref(false)
 const total = ref(props.news.total || 0)
 const currentPage = ref(props.news.current_page || 1)
 const pageSize = ref(props.news.per_page || 5)
-const searchQuery = ref(props.filters.search || '')
+
+// Initialize searchQuery with safe access to filters
+const searchQuery = ref(props.filters?.search || '')
 
 // Delete dialog state
 const deleteDialogOpen = ref(false)
@@ -312,11 +314,11 @@ const columns: ColumnDef<News>[] = [
       const news = row.original
 
       const handleView = () => {
-        router.get(`/news/${news.id}`)
+        router.get(`/news/${news.id}`) // Back to using ID
       }
 
       const handleEdit = () => {
-        router.get(`/news/${news.id}/edit`)
+        router.get(`/news/${news.id}/edit`) // Back to using ID
       }
 
       return h(DropdownMenu, {}, [
@@ -394,8 +396,9 @@ watch(() => props.news, (newNews) => {
   pageSize.value = newNews.per_page || 5
 }, { deep: true })
 
+// Safely watch filters with optional chaining
 watch(() => props.filters, (newFilters) => {
-  searchQuery.value = newFilters.search || ''
+  searchQuery.value = newFilters?.search || ''
 }, { deep: true })
 
 // Update table when data changes

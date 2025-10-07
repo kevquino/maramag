@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import AppLayout from '@/layouts/AppLayout.vue';
 import { type BreadcrumbItem } from '@/types';
-import { router } from '@inertiajs/vue3';
+import { router, Head, useForm } from '@inertiajs/vue3';
 import { ref, computed } from 'vue';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -30,8 +30,8 @@ const breadcrumbs: BreadcrumbItem[] = [
   },
 ];
 
-// Form data
-const form = ref({
+// Use Inertia form
+const form = useForm({
   title: '',
   excerpt: '',
   content: '',
@@ -39,12 +39,10 @@ const form = ref({
   published_at: '',
   status: 'draft',
   is_featured: false,
+  image: null as File | null,
 });
 
-const loading = ref(false);
-const errors = ref<Record<string, string>>({});
 const imagePreview = ref<string | null>(null);
-const imageFile = ref<File | null>(null);
 
 // Categories from backend
 const categories = [
@@ -58,7 +56,7 @@ const handleImageChange = (event: Event) => {
   const target = event.target as HTMLInputElement;
   if (target.files && target.files[0]) {
     const file = target.files[0];
-    imageFile.value = file;
+    form.image = file;
     
     // Create preview
     const reader = new FileReader();
@@ -71,7 +69,7 @@ const handleImageChange = (event: Event) => {
 
 // Remove selected image
 const removeImage = () => {
-  imageFile.value = null;
+  form.image = null;
   imagePreview.value = null;
   // Reset file input
   const fileInput = document.getElementById('image') as HTMLInputElement;
@@ -80,74 +78,15 @@ const removeImage = () => {
   }
 };
 
-// Validation function
-const validateForm = () => {
-  const newErrors: Record<string, string> = {};
-
-  if (!form.value.title.trim()) {
-    newErrors.title = 'Title is required.';
-  } else if (form.value.title.length < 2) {
-    newErrors.title = 'Title must be at least 2 characters.';
-  } else if (form.value.title.length > 255) {
-    newErrors.title = 'Title must not exceed 255 characters.';
-  }
-
-  if (form.value.excerpt.length > 500) {
-    newErrors.excerpt = 'Excerpt must not exceed 500 characters.';
-  }
-
-  if (!form.value.content.trim()) {
-    newErrors.content = 'Content is required.';
-  } else if (form.value.content.length < 10) {
-    newErrors.content = 'Content must be at least 10 characters.';
-  }
-
-  if (!form.value.category) {
-    newErrors.category = 'Category is required.';
-  }
-
-  return newErrors;
-};
-
 // Handle form submission
 const submit = () => {
-  const validationErrors = validateForm();
-  
-  if (Object.keys(validationErrors).length > 0) {
-    errors.value = validationErrors;
-    return;
-  }
-
-  loading.value = true;
-  errors.value = {};
-
-  // Create FormData to handle file upload
-  const formData = new FormData();
-  formData.append('title', form.value.title);
-  formData.append('excerpt', form.value.excerpt);
-  formData.append('content', form.value.content);
-  formData.append('category', form.value.category);
-  formData.append('status', form.value.status);
-  formData.append('is_featured', form.value.is_featured ? '1' : '0');
-  
-  if (form.value.published_at) {
-    formData.append('published_at', form.value.published_at);
-  }
-  
-  if (imageFile.value) {
-    formData.append('image', imageFile.value);
-  }
-
-  router.post('/news', formData, {
+  form.post('/news', {
+    preserveScroll: true,
     onSuccess: () => {
       toast.success('Article created successfully!');
     },
-    onError: (err) => {
-      errors.value = err as Record<string, string>;
+    onError: () => {
       toast.error('Failed to create article. Please check the form for errors.');
-    },
-    onFinish: () => {
-      loading.value = false;
     },
   });
 };
@@ -158,7 +97,7 @@ const cancel = () => {
 };
 
 // Character count for excerpt
-const excerptCount = computed(() => form.value.excerpt.length);
+const excerptCount = computed(() => form.excerpt.length);
 </script>
 
 <template>
@@ -176,10 +115,10 @@ const excerptCount = computed(() => form.value.excerpt.length);
         </div>
 
         <!-- Error summary -->
-        <div v-if="Object.keys(errors).length" class="mb-6 p-4 bg-destructive/15 border border-destructive/50 text-destructive rounded-lg">
+        <div v-if="Object.keys(form.errors).length" class="mb-6 p-4 bg-destructive/15 border border-destructive/50 text-destructive rounded-lg">
           <h3 class="font-semibold mb-2">Please fix the following errors:</h3>
           <ul class="list-disc list-inside space-y-1">
-            <li v-for="(error, field) in errors" :key="field">
+            <li v-for="(error, field) in form.errors" :key="field">
               {{ error }}
             </li>
           </ul>
@@ -203,10 +142,10 @@ const excerptCount = computed(() => form.value.excerpt.length);
                     v-model="form.title"
                     type="text"
                     placeholder="Enter article title"
-                    :class="errors.title ? 'border-destructive' : ''"
+                    :class="form.errors.title ? 'border-destructive' : ''"
                     class="w-full"
                   />
-                  <p v-if="errors.title" class="text-sm text-destructive">{{ errors.title }}</p>
+                  <p v-if="form.errors.title" class="text-sm text-destructive">{{ form.errors.title }}</p>
                 </div>
 
                 <!-- Excerpt -->
@@ -216,12 +155,12 @@ const excerptCount = computed(() => form.value.excerpt.length);
                     id="excerpt"
                     v-model="form.excerpt"
                     placeholder="Brief description of the article (optional)"
-                    :class="errors.excerpt ? 'border-destructive' : ''"
+                    :class="form.errors.excerpt ? 'border-destructive' : ''"
                     rows="3"
                     class="w-full resize-vertical min-h-[100px]"
                   />
                   <div class="flex justify-between items-center">
-                    <p v-if="errors.excerpt" class="text-sm text-destructive">{{ errors.excerpt }}</p>
+                    <p v-if="form.errors.excerpt" class="text-sm text-destructive">{{ form.errors.excerpt }}</p>
                     <p class="text-xs text-muted-foreground ml-auto" :class="excerptCount > 500 ? 'text-destructive' : ''">
                       {{ excerptCount }}/500 characters
                     </p>
@@ -231,7 +170,7 @@ const excerptCount = computed(() => form.value.excerpt.length);
                 <!-- Category -->
                 <div class="space-y-2">
                   <Label for="category" class="text-sm font-medium">Category *</Label>
-                  <Select v-model="form.category" :class="errors.category ? 'border-destructive' : ''">
+                  <Select v-model="form.category" :class="form.errors.category ? 'border-destructive' : ''">
                     <SelectTrigger class="w-full">
                       <SelectValue placeholder="Select a category" />
                     </SelectTrigger>
@@ -245,7 +184,7 @@ const excerptCount = computed(() => form.value.excerpt.length);
                       </SelectItem>
                     </SelectContent>
                   </Select>
-                  <p v-if="errors.category" class="text-sm text-destructive">{{ errors.category }}</p>
+                  <p v-if="form.errors.category" class="text-sm text-destructive">{{ form.errors.category }}</p>
                 </div>
               </div>
             </div>
@@ -262,11 +201,11 @@ const excerptCount = computed(() => form.value.excerpt.length);
                     id="content"
                     v-model="form.content"
                     placeholder="Write your article content here..."
-                    :class="errors.content ? 'border-destructive' : ''"
+                    :class="form.errors.content ? 'border-destructive' : ''"
                     rows="15"
                     class="w-full resize-vertical min-h-[300px]"
                   />
-                  <p v-if="errors.content" class="text-sm text-destructive">{{ errors.content }}</p>
+                  <p v-if="form.errors.content" class="text-sm text-destructive">{{ form.errors.content }}</p>
                 </div>
               </div>
             </div>
@@ -350,13 +289,13 @@ const excerptCount = computed(() => form.value.excerpt.length);
                       type="file"
                       accept="image/jpeg,image/png,image/jpg,image/gif,image/webp"
                       @change="handleImageChange"
-                      :class="errors.image ? 'border-destructive' : ''"
+                      :class="form.errors.image ? 'border-destructive' : ''"
                       class="w-full cursor-pointer"
                     />
                     <p class="text-xs text-muted-foreground">
                       Supported formats: JPEG, PNG, JPG, GIF, WEBP. Max size: 10MB
                     </p>
-                    <p v-if="errors.image" class="text-sm text-destructive">{{ errors.image }}</p>
+                    <p v-if="form.errors.image" class="text-sm text-destructive">{{ form.errors.image }}</p>
                   </div>
 
                   <!-- Image Preview -->
@@ -408,11 +347,11 @@ const excerptCount = computed(() => form.value.excerpt.length);
                   <Button
                     type="submit"
                     @click="submit"
-                    :disabled="loading"
+                    :disabled="form.processing"
                     class="w-full"
                     size="lg"
                   >
-                    <span v-if="loading">Creating...</span>
+                    <span v-if="form.processing">Creating...</span>
                     <span v-else>Create Article</span>
                   </Button>
                   
@@ -420,7 +359,7 @@ const excerptCount = computed(() => form.value.excerpt.length);
                     type="button"
                     variant="outline"
                     @click="cancel"
-                    :disabled="loading"
+                    :disabled="form.processing"
                     class="w-full"
                   >
                     Cancel

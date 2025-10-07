@@ -3,7 +3,7 @@ import AppLayout from '@/layouts/AppLayout.vue';
 import { dashboard } from '@/routes';
 import { type BreadcrumbItem } from '@/types';
 import { Head, router } from '@inertiajs/vue3';
-import { ref, onMounted, computed } from 'vue';
+import { ref, onMounted, onUnmounted, computed } from 'vue';
 
 // Shadcn/vue components
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -64,10 +64,19 @@ const formatter = useDateFormatter("en")
 const calendarValue = ref(today(getLocalTimeZone())) as Ref<DateValue>;
 
 // Types for our data
+interface ActivityUser {
+    id: number;
+    name: string;
+    email: string;
+    avatar?: string | null;
+}
+
 interface Activity {
     id: number;
     description: string;
     type: string;
+    action: string; // 'created', 'updated', 'deleted', etc.
+    user: ActivityUser;
     created_at: string;
 }
 
@@ -79,6 +88,11 @@ interface NewsItem {
     is_featured: boolean;
     published_at?: string;
     created_at: string;
+    author?: {
+        id: number;
+        name: string;
+        email: string;
+    };
 }
 
 // Reactive data
@@ -130,34 +144,76 @@ const stats = ref({
 });
 
 const recentNews = ref<NewsItem[]>([]);
-const recentBids = ref([]);
-const recentDisclosures = ref([]);
-const recentTourism = ref([]);
-const recentAwards = ref([]);
-const recentSanggunian = ref([]);
-const recentOrdinance = ref([]);
 const recentActivity = ref<Activity[]>([]);
 const isLoading = ref(true);
 
-// Fetch dashboard data
+// Auto-refresh functionality
+const lastUpdateTime = ref<string | null>(null);
+const pollingInterval = ref<number | null>(null);
+
+// Enhanced fetch function with timestamp
 const fetchDashboardData = async () => {
     try {
-        const response = await fetch('/api/dashboard/stats');
+        const params = lastUpdateTime.value 
+            ? `?since=${encodeURIComponent(lastUpdateTime.value)}`
+            : '';
+            
+        const response = await fetch(`/api/dashboard/stats${params}`);
         const data = await response.json();
         
-        stats.value = data.stats;
-        recentNews.value = data.recentNews || [];
-        recentBids.value = data.recentBids || [];
-        recentDisclosures.value = data.recentDisclosures || [];
-        recentTourism.value = data.recentTourism || [];
-        recentAwards.value = data.recentAwards || [];
-        recentSanggunian.value = data.recentSanggunian || [];
-        recentOrdinance.value = data.recentOrdinance || [];
-        recentActivity.value = data.recentActivity || [];
+        if (data.stats) {
+            stats.value = { ...stats.value, ...data.stats };
+        }
+        
+        // Update recent activity - only keep latest 6
+        if (data.recentActivity && data.recentActivity.length > 0) {
+            if (!lastUpdateTime.value || recentActivity.value.length === 0) {
+                // Initial load - take only first 6 activities
+                recentActivity.value = data.recentActivity.slice(0, 6);
+            } else {
+                // Update: add new activities to top and maintain only 6 items
+                const newActivities = data.recentActivity.filter((newActivity: Activity) => 
+                    !recentActivity.value.find(a => a.id === newActivity.id)
+                );
+                
+                if (newActivities.length > 0) {
+                    // Add new activities to the beginning and keep only 6 items
+                    recentActivity.value = [
+                        ...newActivities,
+                        ...recentActivity.value
+                    ].slice(0, 6);
+                }
+            }
+        }
+        
+        // Update recent news
+        if (data.recentNews) {
+            recentNews.value = data.recentNews;
+        }
+        
+        lastUpdateTime.value = data.lastUpdated || new Date().toISOString();
+        
     } catch (error) {
         console.error('Error fetching dashboard data:', error);
     } finally {
         isLoading.value = false;
+    }
+};
+
+// Start polling
+const startPolling = () => {
+    fetchDashboardData();
+    
+    pollingInterval.value = window.setInterval(() => {
+        fetchDashboardData();
+    }, 15000);
+};
+
+// Stop polling
+const stopPolling = () => {
+    if (pollingInterval.value) {
+        clearInterval(pollingInterval.value);
+        pollingInterval.value = null;
     }
 };
 
@@ -176,46 +232,77 @@ const formatDate = (dateString: string) => {
     });
 };
 
-// Get status variant for badge
-const getStatusVariant = (status: string) => {
-    switch (status) {
+// Format time
+const formatTime = (dateString: string) => {
+    if (!dateString) return '';
+    return new Date(dateString).toLocaleTimeString('en-US', {
+        hour: '2-digit',
+        minute: '2-digit'
+    });
+};
+
+// Get user initials
+const getUserInitials = (name: string) => {
+    if (!name) return 'U';
+    return name
+        .split(' ')
+        .map(part => part.charAt(0))
+        .join('')
+        .toUpperCase()
+        .slice(0, 2);
+};
+
+// Get user avatar color based on user ID
+const getUserAvatarColor = (userId: number) => {
+    const colors = [
+        'bg-blue-500', 'bg-green-500', 'bg-purple-500', 'bg-orange-500',
+        'bg-pink-500', 'bg-indigo-500', 'bg-teal-500', 'bg-red-500'
+    ];
+    return colors[userId % colors.length];
+};
+
+// Get action icon and color
+const getActionIcon = (action: string) => {
+    switch (action) {
+        case 'created':
+            return {
+                icon: 'M12 6v6m0 0v6m0-6h6m-6 0H6',
+                color: 'text-green-600',
+                bgColor: 'bg-green-100 dark:bg-green-900'
+            };
+        case 'updated':
+            return {
+                icon: 'M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z',
+                color: 'text-blue-600',
+                bgColor: 'bg-blue-100 dark:bg-blue-900'
+            };
+        case 'deleted':
+            return {
+                icon: 'M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16',
+                color: 'text-red-600',
+                bgColor: 'bg-red-100 dark:bg-red-900'
+            };
         case 'published':
-        case 'active':
-        case 'completed':
-        case 'passed':
-        case 'given':
-            return 'default';
-        case 'draft':
-        case 'upcoming':
-        case 'pending':
-            return 'secondary';
-        case 'archived':
-        case 'inactive':
-            return 'outline';
+            return {
+                icon: 'M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z',
+                color: 'text-green-600',
+                bgColor: 'bg-green-100 dark:bg-green-900'
+            };
         default:
-            return 'outline';
+            return {
+                icon: 'M13 10V3L4 14h7v7l9-11h-7z',
+                color: 'text-gray-600',
+                bgColor: 'bg-gray-100 dark:bg-gray-900'
+            };
     }
 };
 
-// Get category variant for badge
-const getCategoryVariant = (category: string) => {
-    const variants: Record<string, string> = {
-        'Business': 'default',
-        'Finance': 'secondary',
-        'Events': 'outline',
-        'Partnerships': 'default',
-        'Sustainability': 'secondary',
-        'Company News': 'outline',
-        'Announcement': 'default',
-        'Update': 'secondary',
-        'Event': 'outline',
-        'Maintenance': 'default'
-    };
-    return variants[category] || 'outline';
-};
-
 onMounted(() => {
-    fetchDashboardData();
+    startPolling();
+});
+
+onUnmounted(() => {
+    stopPolling();
 });
 </script>
 
@@ -241,7 +328,7 @@ onMounted(() => {
                     </CardHeader>
                     <CardContent>
                         <div v-if="isLoading" class="space-y-4">
-                            <div v-for="n in 8" :key="n" class="flex items-start space-x-3">
+                            <div v-for="n in 6" :key="n" class="flex items-start space-x-3">
                                 <Skeleton class="h-8 w-8 rounded-full" />
                                 <div class="space-y-2 flex-1">
                                     <Skeleton class="h-4 w-full" />
@@ -262,28 +349,58 @@ onMounted(() => {
                             </p>
                         </div>
                         
-                        <div v-else class="space-y-4 max-h-[500px] overflow-y-auto">
+                        <div v-else class="space-y-4">
                             <div 
                                 v-for="activity in recentActivity" 
                                 :key="activity.id"
                                 class="flex items-start space-x-3 p-3 rounded-lg border transition-colors hover:bg-muted/50"
                             >
                                 <div class="flex-shrink-0">
-                                    <div class="h-8 w-8 rounded-full bg-blue-100 flex items-center justify-center dark:bg-blue-900">
-                                        <svg class="h-4 w-4 text-blue-600 dark:text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6"></path>
-                                        </svg>
+                                    <div 
+                                        class="h-8 w-8 rounded-full flex items-center justify-center text-xs font-medium text-white"
+                                        :class="getUserAvatarColor(activity.user.id)"
+                                    >
+                                        {{ getUserInitials(activity.user.name) }}
                                     </div>
                                 </div>
                                 <div class="flex-1 min-w-0">
-                                    <p class="text-sm font-medium text-foreground">{{ activity.description }}</p>
-                                    <div class="flex items-center gap-2 mt-1">
-                                        <Badge variant="outline" class="text-xs">
-                                            {{ activity.type }}
-                                        </Badge>
-                                        <span class="text-xs text-muted-foreground">
-                                            {{ formatDate(activity.created_at) }}
-                                        </span>
+                                    <div class="flex items-start justify-between">
+                                        <div class="flex-1">
+                                            <p class="text-sm font-medium text-foreground">{{ activity.description }}</p>
+                                            <div class="flex items-center gap-2 mt-1 flex-wrap">
+                                                <Badge variant="outline" class="text-xs">
+                                                    {{ activity.type }}
+                                                </Badge>
+                                                <div class="flex items-center gap-1 text-xs text-muted-foreground">
+                                                    <span>by</span>
+                                                    <span class="font-medium text-foreground">{{ activity.user.name }}</span>
+                                                </div>
+                                            </div>
+                                        </div>
+                                        <div class="flex items-center gap-2 ml-2 flex-shrink-0">
+                                            <div 
+                                                class="h-6 w-6 rounded-full flex items-center justify-center"
+                                                :class="getActionIcon(activity.action).bgColor"
+                                            >
+                                                <svg 
+                                                    class="h-3 w-3" 
+                                                    :class="getActionIcon(activity.action).color"
+                                                    fill="none" 
+                                                    stroke="currentColor" 
+                                                    viewBox="0 0 24 24"
+                                                >
+                                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" :d="getActionIcon(activity.action).icon" />
+                                                </svg>
+                                            </div>
+                                            <div class="text-right">
+                                                <div class="text-xs text-muted-foreground">
+                                                    {{ formatDate(activity.created_at) }}
+                                                </div>
+                                                <div class="text-xs text-muted-foreground">
+                                                    {{ formatTime(activity.created_at) }}
+                                                </div>
+                                            </div>
+                                        </div>
                                     </div>
                                 </div>
                             </div>
@@ -422,17 +539,24 @@ onMounted(() => {
                         </div>
                         <div class="grid grid-cols-2 gap-2 text-center">
                             <div>
-                                <div class="text-sm font-semibold text-green-600">{{ stats.news.published }}</div>
+                                <div class="text-sm font-semibold text-green-600">
+                                    <Skeleton v-if="isLoading" class="h-4 w-8 mx-auto" />
+                                    <span v-else>{{ stats.news.published }}</span>
+                                </div>
                                 <div class="text-xs text-muted-foreground">Published</div>
                             </div>
                             <div>
-                                <div class="text-sm font-semibold text-yellow-600">{{ stats.news.draft }}</div>
+                                <div class="text-sm font-semibold text-yellow-600">
+                                    <Skeleton v-if="isLoading" class="h-4 w-8 mx-auto" />
+                                    <span v-else>{{ stats.news.draft }}</span>
+                                </div>
                                 <div class="text-xs text-muted-foreground">Drafts</div>
                             </div>
                         </div>
                     </CardContent>
                 </Card>
 
+                <!-- Other cards remain the same but will show 0 values for now -->
                 <!-- Bids & Awards -->
                 <Card class="relative overflow-hidden">
                     <CardHeader class="pb-4">
