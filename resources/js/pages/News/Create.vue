@@ -14,10 +14,20 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { Checkbox } from '@/components/ui/checkbox';
 import { Badge } from '@/components/ui/badge';
-import { X, Upload } from 'lucide-vue-next';
+import { Toggle } from '@/components/ui/toggle';
+import { X, Upload, Star, Save, ArrowLeft } from 'lucide-vue-next';
 import { toast } from 'vue-sonner';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 
 const breadcrumbs: BreadcrumbItem[] = [
   {
@@ -43,6 +53,8 @@ const form = useForm({
 });
 
 const imagePreview = ref<string | null>(null);
+const createDialogOpen = ref(false);
+const cancelDialogOpen = ref(false);
 
 // Categories from backend
 const categories = [
@@ -91,6 +103,51 @@ const submit = () => {
   });
 };
 
+// Confirm create
+const confirmCreate = () => {
+  createDialogOpen.value = false;
+  submit();
+};
+
+// Open create confirmation
+const openCreateDialog = () => {
+  if (validateForm()) {
+    createDialogOpen.value = true;
+  }
+};
+
+// Validate form before submission
+const validateForm = (): boolean => {
+  if (!form.title.trim()) {
+    toast.error('Please enter a title for the article.');
+    return false;
+  }
+  if (!form.category) {
+    toast.error('Please select a category.');
+    return false;
+  }
+  if (!form.content.trim()) {
+    toast.error('Please enter content for the article.');
+    return false;
+  }
+  return true;
+};
+
+// Open cancel confirmation
+const openCancelDialog = () => {
+  if (hasUnsavedChanges.value) {
+    cancelDialogOpen.value = true;
+  } else {
+    cancel();
+  }
+};
+
+// Confirm cancel
+const confirmCancel = () => {
+  cancelDialogOpen.value = false;
+  cancel();
+};
+
 // Cancel and go back
 const cancel = () => {
   router.visit('/news');
@@ -98,6 +155,22 @@ const cancel = () => {
 
 // Character count for excerpt
 const excerptCount = computed(() => form.excerpt.length);
+
+// Check if form has unsaved changes
+const hasUnsavedChanges = computed(() => {
+  return form.title || form.excerpt || form.content || form.category || form.image;
+});
+
+// Get article summary for confirmation dialogs
+const articleSummary = computed(() => {
+  return {
+    title: form.title || 'Untitled Article',
+    category: form.category || 'No category',
+    status: form.status,
+    isFeatured: form.is_featured,
+    hasImage: !!form.image || !!imagePreview.value
+  };
+});
 </script>
 
 <template>
@@ -255,16 +328,21 @@ const excerptCount = computed(() => form.excerpt.length);
                   </p>
                 </div>
 
-                <!-- Featured -->
+                <!-- Featured Toggle -->
                 <div class="space-y-2">
-                  <div class="flex items-center space-x-2">
-                    <Checkbox
-                      id="is_featured"
-                      v-model:checked="form.is_featured"
-                    />
-                    <Label for="is_featured" class="text-sm font-medium cursor-pointer">
-                      Feature this article
-                    </Label>
+                  <Label class="text-sm font-medium">Featured Article</Label>
+                  <div class="flex items-center justify-between p-1 border rounded-lg bg-muted/50">
+                    <div class="flex items-center space-x-2">
+                      <Toggle 
+                        :pressed="form.is_featured"
+                        @click="form.is_featured = !form.is_featured"
+                        aria-label="Toggle featured"
+                        :class="form.is_featured ? 'bg-primary text-primary-foreground' : ''"
+                      >
+                        <Star class="h-4 w-4" :class="form.is_featured ? 'text-yellow-500 fill-yellow-500' : 'text-muted-foreground'" />
+                      </Toggle>
+                      <span class="text-sm">Mark as featured</span>
+                    </div>
                   </div>
                   <p class="text-xs text-muted-foreground">
                     Featured articles will be highlighted with a star and appear first in listings
@@ -345,12 +423,13 @@ const excerptCount = computed(() => form.excerpt.length);
               <div class="p-4 sm:p-6">
                 <div class="space-y-3">
                   <Button
-                    type="submit"
-                    @click="submit"
+                    type="button"
+                    @click="openCreateDialog"
                     :disabled="form.processing"
                     class="w-full"
                     size="lg"
                   >
+                    <Save class="h-4 w-4 mr-2" />
                     <span v-if="form.processing">Creating...</span>
                     <span v-else>Create Article</span>
                   </Button>
@@ -358,10 +437,11 @@ const excerptCount = computed(() => form.excerpt.length);
                   <Button
                     type="button"
                     variant="outline"
-                    @click="cancel"
+                    @click="openCancelDialog"
                     :disabled="form.processing"
                     class="w-full"
                   >
+                    <ArrowLeft class="h-4 w-4 mr-2" />
                     Cancel
                   </Button>
                 </div>
@@ -371,6 +451,75 @@ const excerptCount = computed(() => form.excerpt.length);
         </div>
       </div>
     </div>
+
+    <!-- Create Confirmation Dialog -->
+    <AlertDialog v-model:open="createDialogOpen">
+      <AlertDialogContent>
+        <AlertDialogHeader>
+          <AlertDialogTitle>Create News Article?</AlertDialogTitle>
+          <AlertDialogDescription>
+            Are you sure you want to create this news article?
+            <div class="mt-4 p-3 bg-muted rounded-lg space-y-2">
+              <div class="flex justify-between">
+                <span class="font-medium">Title:</span>
+                <span>{{ articleSummary.title }}</span>
+              </div>
+              <div class="flex justify-between">
+                <span class="font-medium">Category:</span>
+                <span>{{ articleSummary.category }}</span>
+              </div>
+              <div class="flex justify-between">
+                <span class="font-medium">Status:</span>
+                <Badge :variant="articleSummary.status === 'published' ? 'default' : 'outline'">
+                  {{ articleSummary.status }}
+                </Badge>
+              </div>
+              <div class="flex justify-between">
+                <span class="font-medium">Featured:</span>
+                <span>{{ articleSummary.isFeatured ? 'Yes' : 'No' }}</span>
+              </div>
+              <div class="flex justify-between">
+                <span class="font-medium">Image:</span>
+                <span>{{ articleSummary.hasImage ? 'Yes' : 'No' }}</span>
+              </div>
+            </div>
+          </AlertDialogDescription>
+        </AlertDialogHeader>
+        <AlertDialogFooter>
+          <AlertDialogCancel @click="createDialogOpen = false">
+            Continue Editing
+          </AlertDialogCancel>
+          <AlertDialogAction @click="confirmCreate">
+            Create Article
+          </AlertDialogAction>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
+
+    <!-- Cancel Confirmation Dialog -->
+    <AlertDialog v-model:open="cancelDialogOpen">
+      <AlertDialogContent>
+        <AlertDialogHeader>
+          <AlertDialogTitle>Cancel Creation?</AlertDialogTitle>
+          <AlertDialogDescription>
+            <span v-if="hasUnsavedChanges">
+              You have unsaved changes. If you cancel now, all your changes will be lost.
+            </span>
+            <span v-else>
+              This will cancel the article creation and return you to the news list.
+            </span>
+          </AlertDialogDescription>
+        </AlertDialogHeader>
+        <AlertDialogFooter>
+          <AlertDialogCancel @click="cancelDialogOpen = false">
+            Continue Creating
+          </AlertDialogCancel>
+          <AlertDialogAction @click="confirmCancel">
+            Cancel Creation
+          </AlertDialogAction>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
   </AppLayout>
 </template>
 
