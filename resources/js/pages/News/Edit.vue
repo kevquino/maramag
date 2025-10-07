@@ -53,6 +53,20 @@ const props = defineProps<{
   };
 }>();
 
+// Define categories based on the migration enum
+const categories = [
+  'Business',
+  'Finance', 
+  'Events', 
+  'Partnerships', 
+  'Sustainability', 
+  'Company News',
+  'Announcement',
+  'Update',
+  'Event',
+  'Maintenance'
+] as const;
+
 // Breadcrumbs
 const breadcrumbs: BreadcrumbItem[] = [
   {
@@ -260,16 +274,24 @@ const openDeleteDialog = () => {
               <!-- Category -->
               <div class="space-y-2">
                 <Label for="category">Category</Label>
-                <Input
-                  id="category"
-                  v-model="form.category"
-                  type="text"
-                  placeholder="e.g., Technology, Sports"
-                  :class="{ 'border-destructive': form.errors.category }"
-                />
+                <Select v-model="form.category">
+                  <SelectTrigger :class="{ 'border-destructive': form.errors.category }">
+                    <SelectValue placeholder="Select a category" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem 
+                      v-for="category in categories" 
+                      :key="category" 
+                      :value="category"
+                    >
+                      {{ category }}
+                    </SelectItem>
+                  </SelectContent>
+                </Select>
                 <p v-if="form.errors.category" class="text-sm text-destructive">
                   {{ form.errors.category }}
                 </p>
+                
               </div>
 
               <!-- Status -->
@@ -380,6 +402,26 @@ const openDeleteDialog = () => {
                 <span class="text-muted-foreground">Featured:</span>
                 <Badge :variant="article.is_featured ? 'default' : 'secondary'">
                   {{ article.is_featured ? 'Yes' : 'No' }}
+                </Badge>
+              </div>
+              <div class="flex justify-between items-center">
+                <span class="text-muted-foreground">Category:</span>
+                <Badge variant="outline">
+                  {{ article.category }}
+                </Badge>
+              </div>
+              <div class="flex justify-between items-center">
+                <span class="text-muted-foreground">Status:</span>
+                <Badge 
+                  :variant="
+                    article.status === 'published' 
+                      ? 'default' 
+                      : article.status === 'draft' 
+                      ? 'secondary' 
+                      : 'destructive'
+                  "
+                >
+                  {{ article.status.charAt(0).toUpperCase() + article.status.slice(1) }}
                 </Badge>
               </div>
             </div>
