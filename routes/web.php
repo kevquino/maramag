@@ -3,14 +3,21 @@
 use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
 use App\Http\Controllers\NewsController;
+use App\Http\Controllers\DashboardController;
 
 Route::get('/', function () {
     return Inertia::render('Welcome');
 })->name('home');
 
-Route::get('dashboard', function () {
-    return Inertia::render('Dashboard');
-})->middleware(['auth', 'verified'])->name('dashboard');
+// Update dashboard route to use controller
+Route::get('dashboard', [DashboardController::class, 'index'])
+    ->middleware(['auth', 'verified'])
+    ->name('dashboard');
+
+// Add API route for dashboard stats
+Route::get('/api/dashboard/stats', [DashboardController::class, 'stats'])
+    ->middleware(['auth'])
+    ->name('dashboard.stats');
 
 Route::middleware(['auth'])->group(function () {
     // News management routes - using resource for standard CRUD
