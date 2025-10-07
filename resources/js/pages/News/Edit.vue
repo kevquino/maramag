@@ -196,10 +196,10 @@ const openDeleteDialog = () => {
         </div>
       </div>
 
-      <!-- Edit Form -->
-      <div class="grid grid-cols-1 lg:grid-cols-3 gap-4 md:gap-6 w-full">
-        <!-- Main Form -->
-        <div class="lg:col-span-2 space-y-4 md:space-y-6">
+      <!-- Edit Form with Image Preview on Right -->
+      <div class="flex flex-col lg:flex-row gap-6 w-full">
+        <!-- Main Form Content -->
+        <div class="flex-1 space-y-4 md:space-y-6">
           <!-- Basic Information Card -->
           <div class="bg-card rounded-lg border shadow-sm p-4 md:p-6">
             <h2 class="text-lg md:text-xl font-semibold mb-4">Basic Information</h2>
@@ -251,15 +251,12 @@ const openDeleteDialog = () => {
               </div>
             </div>
           </div>
-        </div>
 
-        <!-- Sidebar -->
-        <div class="space-y-4 md:space-y-6">
-          <!-- Status & Category Card -->
+          <!-- Settings Card -->
           <div class="bg-card rounded-lg border shadow-sm p-4 md:p-6">
             <h2 class="text-lg md:text-xl font-semibold mb-4">Settings</h2>
             
-            <div class="space-y-4">
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
               <!-- Category -->
               <div class="space-y-2">
                 <Label for="category">Category</Label>
@@ -294,19 +291,24 @@ const openDeleteDialog = () => {
               </div>
             </div>
           </div>
+        </div>
 
+        <!-- Sidebar with Image Preview and Article Info -->
+        <div class="lg:w-80 xl:w-96 flex-shrink-0 space-y-4 md:space-y-6">
           <!-- Featured Image Card -->
           <div class="bg-card rounded-lg border shadow-sm p-4 md:p-6">
             <h2 class="text-lg md:text-xl font-semibold mb-4">Featured Image</h2>
             
             <div class="space-y-4">
-              <!-- Image Preview -->
+              <!-- Square Image Preview -->
               <div v-if="imagePreview" class="relative">
-                <img
-                  :src="imagePreview"
-                  alt="Featured image preview"
-                  class="w-full h-32 md:h-48 object-cover rounded-lg"
-                />
+                <div class="aspect-square w-full overflow-hidden rounded-lg border">
+                  <img
+                    :src="imagePreview"
+                    alt="Featured image preview"
+                    class="w-full h-full object-cover"
+                  />
+                </div>
                 <Button
                   type="button"
                   variant="destructive"
@@ -316,6 +318,13 @@ const openDeleteDialog = () => {
                 >
                   Remove
                 </Button>
+              </div>
+
+              <!-- No Image State -->
+              <div v-else class="aspect-square w-full border-2 border-dashed border-muted-foreground/25 rounded-lg flex flex-col items-center justify-center text-muted-foreground p-4">
+                <Upload class="h-8 w-8 mb-2 opacity-50" />
+                <p class="text-sm text-center">No image selected</p>
+                <p class="text-xs text-center mt-1">Upload an image to preview</p>
               </div>
 
               <!-- Image Upload -->
@@ -330,7 +339,7 @@ const openDeleteDialog = () => {
                   :class="{ 'border-destructive': form.errors.image }"
                 />
                 <p class="text-sm text-muted-foreground">
-                  Recommended size: 1200x630px. Max 2MB.
+                  Recommended: Square aspect ratio. Max 2MB.
                 </p>
                 <p v-if="form.errors.image" class="text-sm text-destructive">
                   {{ form.errors.image }}
@@ -446,3 +455,23 @@ const openDeleteDialog = () => {
     </AlertDialog>
   </AppLayout>
 </template>
+
+<style scoped>
+/* Ensure the image container maintains square aspect ratio */
+.aspect-square {
+  aspect-ratio: 1 / 1;
+}
+
+/* Responsive adjustments for smaller screens */
+@media (max-width: 1024px) {
+  .flex-col.lg\:flex-row {
+    flex-direction: column;
+  }
+  
+  .lg\:w-80, .xl\:w-96 {
+    width: 100%;
+    max-width: 400px;
+    margin: 0 auto;
+  }
+}
+</style>

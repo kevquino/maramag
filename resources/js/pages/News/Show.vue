@@ -245,23 +245,33 @@ const openDeleteDialog = () => {
         </Badge>
       </div>
 
-      <!-- Article Content -->
-      <div class="bg-card rounded-lg border shadow-sm overflow-hidden w-full">
-        <!-- Featured Image -->
-        <div v-if="article.image_url" class="w-full h-64 sm:h-80 overflow-hidden">
-          <img
-            :src="article.image_url"
-            :alt="article.title"
-            class="w-full h-full object-cover"
-          />
+      <!-- Article Content with Image on Right -->
+      <div class="flex flex-col lg:flex-row gap-6 w-full">
+        <!-- Content Section -->
+        <div class="flex-1 bg-card rounded-lg border shadow-sm overflow-hidden">
+          <div class="p-4 sm:p-6 md:p-8">
+            <div 
+              class="prose prose-sm sm:prose-lg max-w-none"
+              v-html="article.content"
+            ></div>
+          </div>
         </div>
 
-        <!-- Content -->
-        <div class="p-4 sm:p-6 md:p-8">
-          <div 
-            class="prose prose-sm sm:prose-lg max-w-none"
-            v-html="article.content"
-          ></div>
+        <!-- Image Section - Square and positioned on right -->
+        <div v-if="article.image_url" class="lg:w-80 xl:w-96 flex-shrink-0">
+          <div class="bg-card rounded-lg border shadow-sm overflow-hidden">
+            <div class="aspect-square w-full overflow-hidden">
+              <img
+                :src="article.image_url"
+                :alt="article.title"
+                class="w-full h-full object-cover"
+              />
+            </div>
+            <!-- Optional image caption -->
+            <div class="p-4 text-center text-sm text-muted-foreground border-t">
+              Featured image for "{{ article.title }}"
+            </div>
+          </div>
         </div>
       </div>
 
@@ -417,6 +427,24 @@ const openDeleteDialog = () => {
     font-size: 1.125rem;
     margin-top: 1rem;
     margin-bottom: 0.5rem;
+  }
+}
+
+/* Ensure the image container maintains square aspect ratio */
+.aspect-square {
+  aspect-ratio: 1 / 1;
+}
+
+/* Responsive adjustments for smaller screens */
+@media (max-width: 1024px) {
+  .flex-col.lg\:flex-row {
+    flex-direction: column;
+  }
+  
+  .lg\:w-80, .xl\:w-96 {
+    width: 100%;
+    max-width: 400px;
+    margin: 0 auto;
   }
 }
 </style>

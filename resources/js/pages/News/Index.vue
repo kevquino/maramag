@@ -233,13 +233,13 @@ const columns: ColumnDef<News>[] = [
   {
     id: "select",
     header: ({ table }) => h(Checkbox, {
-      "checked": table.getIsAllPageRowsSelected() || (table.getIsSomePageRowsSelected() && "indeterminate"),
-      "onUpdate:checked": (value: boolean | "indeterminate") => table.toggleAllPageRowsSelected(!!value),
+      "modelValue": table.getIsAllPageRowsSelected() || (table.getIsSomePageRowsSelected() && "indeterminate"),
+      "onUpdate:modelValue": (value: boolean | "indeterminate") => table.toggleAllPageRowsSelected(!!value),
       "ariaLabel": "Select all",
     }),
     cell: ({ row }) => h(Checkbox, {
-      "checked": row.getIsSelected(),
-      "onUpdate:checked": (value: boolean | "indeterminate") => row.toggleSelected(!!value),
+      "modelValue": row.getIsSelected(),
+      "onUpdate:modelValue": (value: boolean | "indeterminate") => row.toggleSelected(!!value),
       "ariaLabel": "Select row",
     }),
     enableSorting: false,
@@ -346,29 +346,6 @@ const columns: ColumnDef<News>[] = [
             h("span", "Edit")
           ]),
           h(DropdownMenuSeparator),
-          // h(DropdownMenuItem, {
-          //   onClick: () => handleFeatureToggle(news),
-          //   class: "flex items-center space-x-2 cursor-pointer"
-          // }, [
-          //   h(Star, { class: `h-4 w-4 ${news.is_featured ? 'text-yellow-500 fill-yellow-500' : ''}` }),
-          //   h("span", news.is_featured ? "Unfeature" : "Feature")
-          // ]),
-          // h(DropdownMenuSeparator),
-          // h(DropdownMenuItem, {
-          //   onClick: () => handleStatusChange(news, news.status === 'published' ? 'draft' : 'published'),
-          //   class: `flex items-center space-x-2 cursor-pointer ${news.status === 'published' ? 'text-orange-600' : 'text-green-600'}`
-          // }, [
-          //   h(Archive, { class: "h-4 w-4" }),
-          //   h("span", news.status === 'published' ? "Unpublish" : "Publish")
-          // ]),
-          // h(DropdownMenuItem, {
-          //   onClick: () => handleStatusChange(news, 'archived'),
-          //   class: "flex items-center space-x-2 cursor-pointer text-blue-600"
-          // }, [
-          //   h(Archive, { class: "h-4 w-4" }),
-          //   h("span", "Archive")
-          // ]),
-          // h(DropdownMenuSeparator),
           h(DropdownMenuItem, {
             onClick: () => openDeleteDialog(news),
             class: "flex items-center space-x-2 cursor-pointer text-destructive"
@@ -435,60 +412,69 @@ watch(tableData, () => {
 
   <AppLayout :breadcrumbs="breadcrumbs">
     <div class="flex h-full flex-1 flex-col gap-4 overflow-x-auto rounded-xl p-4">
-      <div class="flex items-center justify-between">
-        <div>
+      <!-- Header Section - Responsive -->
+      <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+        <div class="text-center sm:text-left">
           <h1 class="text-2xl font-bold text-foreground">News Management</h1>
-          <p class="text-muted-foreground">Manage your news articles and publications</p>
+          <p class="text-muted-foreground mt-1">Manage your news articles and publications</p>
         </div>
-        <!-- Using Link component for create -->
-        <Link href="/news/create" as="button">
-          <Button>
+        
+        <!-- Add New Article Button - Full width on mobile -->
+        <Link href="/news/create" as="button" class="w-full sm:w-auto">
+          <Button class="w-full sm:w-auto">
             <span class="mr-2">+</span>
             Add New Article
           </Button>
         </Link>
       </div>
 
+      <!-- Table Container -->
       <div class="w-full bg-card rounded-lg border shadow-sm">
-        <div class="flex items-center justify-between p-4 border-b">
+        <!-- Search and Filter Section - Responsive -->
+        <div class="flex flex-col sm:flex-row gap-3 p-4 border-b">
           <Input
-            class="max-w-sm"
+            class="w-full sm:max-w-sm"
             placeholder="Search articles..."
             :model-value="searchQuery"
             @update:model-value="(payload: string | number) => handleSearch(payload as string)"
           />
           <DropdownMenu>
             <DropdownMenuTrigger as-child>
-              <Button variant="outline">
+              <Button variant="outline" class="w-full sm:w-auto sm:ml-auto">
                 Columns <ChevronDown class="ml-2 h-4 w-4" />
               </Button>
             </DropdownMenuTrigger>
-            <DropdownMenuContent align="end">
+            <DropdownMenuContent align="end" class="w-full sm:w-48">
               <DropdownMenuCheckboxItem
                 v-for="column in table.getAllColumns().filter((column) => column.getCanHide())"
                 :key="column.id"
                 class="capitalize"
-                :checked="column.getIsVisible()"
-                @update:checked="(value: boolean) => {
+                :model-value="column.getIsVisible()"
+                @update:model-value="(value) => {
                   column.toggleVisibility(!!value)
                 }"
               >
-                {{ column.id === 'title' ? 'Title' : 
-                    column.id === 'category' ? 'Category' : 
-                    column.id === 'status' ? 'Status' : 
-                    column.id === 'author.name' ? 'Author' : 
-                    column.id === 'published_at' ? 'Published Date' : 
-                    column.id === 'created_at' ? 'Created Date' : column.id }}
+                {{ 
+                  column.id === 'title' ? 'Title' : 
+                  column.id === 'category' ? 'Category' : 
+                  column.id === 'status' ? 'Status' : 
+                  column.id === 'author.name' ? 'Author' : 
+                  column.id === 'published_at' ? 'Published Date' : 
+                  column.id === 'created_at' ? 'Created Date' : 
+                  column.id === 'select' ? 'Select' : 
+                  column.id === 'actions' ? 'Actions' : column.id 
+                }}
               </DropdownMenuCheckboxItem>
             </DropdownMenuContent>
           </DropdownMenu>
         </div>
         
-        <div class="rounded-md">
+        <!-- Table - Responsive -->
+        <div class="rounded-md overflow-x-auto">
           <Table>
             <TableHeader>
               <TableRow v-for="headerGroup in table.getHeaderGroups()" :key="headerGroup.id">
-                <TableHead v-for="header in headerGroup.headers" :key="header.id">
+                <TableHead v-for="header in headerGroup.headers" :key="header.id" class="whitespace-nowrap">
                   <FlexRender v-if="!header.isPlaceholder" :render="header.column.columnDef.header" :props="header.getContext()" />
                 </TableHead>
               </TableRow>
@@ -501,7 +487,7 @@ watch(tableData, () => {
                   :data-state="row.getIsSelected() && 'selected'"
                   class="hover:bg-muted/50 transition-colors"
                 >
-                  <TableCell v-for="cell in row.getVisibleCells()" :key="cell.id">
+                  <TableCell v-for="cell in row.getVisibleCells()" :key="cell.id" class="whitespace-nowrap">
                     <FlexRender :render="cell.column.columnDef.cell" :props="cell.getContext()" />
                   </TableCell>
                 </TableRow>
@@ -531,13 +517,14 @@ watch(tableData, () => {
           </Table>
         </div>
 
-        <div class="flex items-center justify-between p-4 border-t">
-          <div class="flex-1 text-sm text-muted-foreground">
+        <!-- Pagination Section - Responsive -->
+        <div class="flex flex-col sm:flex-row items-center justify-between gap-4 p-4 border-t">
+          <div class="flex-1 text-sm text-muted-foreground text-center sm:text-left">
             {{ table.getFilteredSelectedRowModel().rows.length }} of
             {{ table.getFilteredRowModel().rows.length }} row(s) selected.
           </div>
-          <div class="flex items-center space-x-4">
-            <div class="text-sm text-muted-foreground">
+          <div class="flex flex-col sm:flex-row items-center gap-4">
+            <div class="text-sm text-muted-foreground text-center sm:text-left">
               Page {{ currentPage }} of {{ Math.ceil(total / pageSize) }}
             </div>
             <div class="flex items-center space-x-2">
@@ -546,6 +533,7 @@ watch(tableData, () => {
                 size="sm"
                 :disabled="currentPage <= 1 || loading"
                 @click="handlePreviousPage"
+                class="w-20 sm:w-auto"
               >
                 Previous
               </Button>
@@ -554,6 +542,7 @@ watch(tableData, () => {
                 size="sm"
                 :disabled="currentPage >= Math.ceil(total / pageSize) || loading"
                 @click="handleNextPage"
+                class="w-20 sm:w-auto"
               >
                 Next
               </Button>
@@ -565,7 +554,7 @@ watch(tableData, () => {
 
     <!-- Delete Confirmation Dialog -->
     <AlertDialog v-model:open="deleteDialogOpen">
-      <AlertDialogContent>
+      <AlertDialogContent class="max-w-[95vw] sm:max-w-md">
         <AlertDialogHeader>
           <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
           <AlertDialogDescription>
@@ -573,14 +562,14 @@ watch(tableData, () => {
             "{{ newsToDelete?.title }}" and remove it from our servers.
           </AlertDialogDescription>
         </AlertDialogHeader>
-        <AlertDialogFooter>
-          <AlertDialogCancel :disabled="deleting" @click="deleteDialogOpen = false">Cancel</AlertDialogCancel>
+        <AlertDialogFooter class="flex flex-col sm:flex-row gap-2">
+          <AlertDialogCancel :disabled="deleting" @click="deleteDialogOpen = false" class="w-full sm:w-auto">Cancel</AlertDialogCancel>
           <AlertDialogAction 
             @click="deleteNews"
-            class="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            class="bg-destructive text-destructive-foreground hover:bg-destructive/90 w-full sm:w-auto"
             :disabled="deleting"
           >
-            <div v-if="deleting" class="flex items-center space-x-2">
+            <div v-if="deleting" class="flex items-center justify-center space-x-2">
               <div class="animate-spin rounded-full h-3 w-3 border-b-2 border-white"></div>
               <span>Deleting...</span>
             </div>
