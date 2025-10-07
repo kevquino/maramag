@@ -166,6 +166,7 @@ class NewsController extends Controller
             'category' => 'required|string|max:100',
             'status' => 'required|in:draft,published,archived',
             'image' => 'nullable|image|mimes:jpeg,png,jpg,gif|max:2048',
+            'remove_existing_image' => 'nullable|boolean',
         ]);
 
         if ($validator->fails()) {
@@ -190,9 +191,15 @@ class NewsController extends Controller
                     : null,
             ];
 
+            // Handle image removal
+            if ($request->boolean('remove_existing_image') && $news->image_path) {
+                Storage::disk('public')->delete($news->image_path);
+                $updateData['image_path'] = null;
+            }
+
             $news->update($updateData);
 
-            // Handle image upload
+            // Handle new image upload
             if ($request->hasFile('image')) {
                 // Delete old image if exists
                 if ($news->image_path) {
