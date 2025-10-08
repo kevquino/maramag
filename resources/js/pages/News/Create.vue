@@ -464,7 +464,7 @@ const articleSummary = computed(() => {
                 <span class="font-medium">Title:</span>
                 <span>{{ articleSummary.title }}</span>
               </div>
-              <div class="flex justify-between">
+              <div class="flex justify-between">  
                 <span class="font-medium">Category:</span>
                 <span>{{ articleSummary.category }}</span>
               </div>

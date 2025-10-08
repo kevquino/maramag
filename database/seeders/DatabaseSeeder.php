@@ -1,4 +1,5 @@
 <?php
+// database/seeders/DatabaseSeeder.php
 
 namespace Database\Seeders;
 
@@ -8,9 +9,9 @@ class DatabaseSeeder extends Seeder
 {
     public function run(): void
     {
-        // Check if UserSeeder exists, if not create users in NewsSeeder
         $this->call([
             NewsSeeder::class,
+            BidsAwardsSeeder::class,
         ]);
     }
 }

@@ -5,6 +5,7 @@ use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
 use App\Http\Controllers\NewsController;
 use App\Http\Controllers\DashboardController;
+use App\Http\Controllers\BidsAwardsController;
 
 Route::get('/', function () {
     return Inertia::render('Welcome');
@@ -27,10 +28,15 @@ Route::middleware(['auth'])->group(function () {
     // Additional news management routes
     Route::post('/news/{news}/status', [NewsController::class, 'updateStatus'])->name('news.status');
     Route::post('/news/{news}/toggle-featured', [NewsController::class, 'toggleFeatured'])->name('news.toggle-featured');
+
+    // Bids & Awards management routes
+    Route::resource('bids-awards', BidsAwardsController::class);
+    Route::post('/bids-awards/{bids_award}/toggle-featured', [BidsAwardsController::class, 'toggleFeatured'])->name('bids-awards.toggle-featured');
 });
 
-// Public show route (accessible without auth if needed)
+// Public show routes (accessible without auth if needed)
 Route::get('/news/{news}', [NewsController::class, 'show'])->name('news.show');
+Route::get('/bids-awards/{bids_award}', [BidsAwardsController::class, 'show'])->name('bids-awards.show');
 
 require __DIR__.'/settings.php';
 require __DIR__.'/auth.php';
