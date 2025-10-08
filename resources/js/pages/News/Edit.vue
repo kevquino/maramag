@@ -4,7 +4,7 @@ import { dashboard } from '@/routes';
 import { type BreadcrumbItem } from '@/types';
 import { Head, router, useForm } from '@inertiajs/vue3';
 import { ArrowLeft, Save, Upload, Trash2, Eye, Star } from 'lucide-vue-next';
-import { ref } from 'vue';
+import { ref, computed } from 'vue';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
@@ -104,9 +104,34 @@ const imageFileInput = ref<HTMLInputElement>();
 // Track if we had an initial image
 const hadInitialImage = ref(!!props.article.image_url);
 
-// Delete dialog state
+// Dialog states
+const saveDialogOpen = ref(false);
+const cancelDialogOpen = ref(false);
 const deleteDialogOpen = ref(false);
 const deleting = ref(false);
+
+// Check if form has unsaved changes
+const hasUnsavedChanges = computed(() => {
+  return form.title !== props.article.title ||
+         form.excerpt !== props.article.excerpt ||
+         form.content !== props.article.content ||
+         form.category !== props.article.category ||
+         form.status !== props.article.status ||
+         form.is_featured !== props.article.is_featured ||
+         form.image !== null ||
+         form.remove_existing_image;
+});
+
+// Get article summary for confirmation dialogs
+const articleSummary = computed(() => {
+  return {
+    title: form.title || 'Untitled Article',
+    category: form.category || 'No category',
+    status: form.status,
+    isFeatured: form.is_featured,
+    hasImage: !!form.image || !!imagePreview.value || (!!props.article.image_url && !form.remove_existing_image)
+  };
+});
 
 // Handle image selection
 const handleImageSelect = (event: Event) => {
@@ -157,14 +182,54 @@ const submit = () => {
   });
 };
 
-// Handle back to news list
-const handleBackToList = () => {
-  router.get('/news');
+// Confirm save
+const confirmSave = () => {
+  saveDialogOpen.value = false;
+  submit();
 };
 
-// Handle back to show page
-const handleBackToArticle = () => {
-  router.get(`/news/${props.article.id}`);
+// Open save confirmation
+const openSaveDialog = () => {
+  if (validateForm()) {
+    saveDialogOpen.value = true;
+  }
+};
+
+// Validate form before submission
+const validateForm = (): boolean => {
+  if (!form.title.trim()) {
+    toast.error('Please enter a title for the article.');
+    return false;
+  }
+  if (!form.category) {
+    toast.error('Please select a category.');
+    return false;
+  }
+  if (!form.content.trim()) {
+    toast.error('Please enter content for the article.');
+    return false;
+  }
+  return true;
+};
+
+// Open cancel confirmation
+const openCancelDialog = () => {
+  if (hasUnsavedChanges.value) {
+    cancelDialogOpen.value = true;
+  } else {
+    cancel();
+  }
+};
+
+// Confirm cancel
+const confirmCancel = () => {
+  cancelDialogOpen.value = false;
+  cancel();
+};
+
+// Cancel and go back
+const cancel = () => {
+  router.visit('/news');
 };
 
 // Delete news article using Inertia
@@ -203,247 +268,369 @@ const openDeleteDialog = () => {
   <Head title="Edit News Article" />
 
   <AppLayout :breadcrumbs="breadcrumbs">
-    <div class="flex h-full flex-1 flex-col gap-6 p-4 md:p-6 w-full">
-      <!-- Header Section -->
-      <div class="flex flex-col w-full">
-        <div class="w-full">
-          <h1 class="text-2xl md:text-3xl font-bold text-foreground">Edit Article</h1>
-          <p class="text-muted-foreground mt-2">Update the news article details</p>
-        </div>
-      </div>
-
-      <!-- Edit Form with Text on Left, Image and Settings on Right -->
-      <div class="flex flex-col lg:flex-row gap-6 w-full">
-        <!-- Text Content on Left -->
-        <div class="flex-1 space-y-4 md:space-y-6">
-          <!-- Basic Information Card -->
-          <div class="bg-card rounded-lg border shadow-sm p-4 md:p-6">
-            <h2 class="text-lg md:text-xl font-semibold mb-4">Basic Information</h2>
-            
-            <div class="space-y-4">
-              <!-- Title -->
-              <div class="space-y-2">
-                <Label for="title">Title</Label>
-                <Input
-                  id="title"
-                  v-model="form.title"
-                  type="text"
-                  placeholder="Enter article title"
-                  :class="{ 'border-destructive': form.errors.title }"
-                />
-                <p v-if="form.errors.title" class="text-sm text-destructive">
-                  {{ form.errors.title }}
-                </p>
-              </div>
-
-              <!-- Excerpt -->
-              <div class="space-y-2">
-                <Label for="excerpt">Excerpt</Label>
-                <Textarea
-                  id="excerpt"
-                  v-model="form.excerpt"
-                  placeholder="Brief description of the article"
-                  :class="{ 'border-destructive': form.errors.excerpt }"
-                  rows="3"
-                />
-                <p v-if="form.errors.excerpt" class="text-sm text-destructive">
-                  {{ form.errors.excerpt }}
-                </p>
-              </div>
-
-              <!-- Content -->
-              <div class="space-y-2">
-                <Label for="content">Content</Label>
-                <Textarea
-                  id="content"
-                  v-model="form.content"
-                  placeholder="Write your article content here..."
-                  :class="{ 'border-destructive': form.errors.content }"
-                  rows="12"
-                />
-                <p v-if="form.errors.content" class="text-sm text-destructive">
-                  {{ form.errors.content }}
-                </p>
-              </div>
-            </div>
+    <div class="w-full p-4 sm:p-6">
+      <div class="w-full max-w-none mx-auto">
+        <!-- Header -->
+        <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6">
+          <div class="flex-1 min-w-0">
+            <h1 class="text-2xl sm:text-3xl font-bold text-foreground truncate">Edit News Article</h1>
+            <p class="text-muted-foreground mt-1">Update the news article details</p>
           </div>
         </div>
 
-        <!-- Right Sidebar with Featured Image and Settings -->
-        <div class="lg:w-96 flex-shrink-0 space-y-6">
-          <!-- Featured Image Card -->
-          <div class="bg-card rounded-lg border shadow-sm p-4 md:p-6">
-            <h2 class="text-lg md:text-xl font-semibold mb-4">Featured Image</h2>
-            
-            <div class="space-y-4">
-              <!-- Full Thumbnail Image Preview -->
-              <div v-if="imagePreview" class="relative">
-                <div class="w-full overflow-hidden rounded-lg border">
-                  <img
-                    :src="imagePreview"
-                    alt="Featured image preview"
-                    class="w-full h-auto max-h-80 object-cover"
+        <!-- Error summary -->
+        <div v-if="Object.keys(form.errors).length" class="mb-6 p-4 bg-destructive/15 border border-destructive/50 text-destructive rounded-lg">
+          <h3 class="font-semibold mb-2">Please fix the following errors:</h3>
+          <ul class="list-disc list-inside space-y-1">
+            <li v-for="(error, field) in form.errors" :key="field">
+              {{ error }}
+            </li>
+          </ul>
+        </div>
+
+        <!-- Main Form Grid -->
+        <div class="grid grid-cols-1 xl:grid-cols-3 gap-6">
+          <!-- Left Column - Main Content -->
+          <div class="xl:col-span-2 space-y-6">
+            <!-- Basic Information Card -->
+            <div class="bg-card rounded-lg border shadow-sm">
+              <div class="p-4 sm:p-6 border-b">
+                <h2 class="text-lg font-semibold">Basic Information</h2>
+              </div>
+              <div class="p-4 sm:p-6 space-y-6">
+                <!-- Title -->
+                <div class="space-y-2">
+                  <Label for="title" class="text-sm font-medium">Title *</Label>
+                  <Input
+                    id="title"
+                    v-model="form.title"
+                    type="text"
+                    placeholder="Enter article title"
+                    :class="form.errors.title ? 'border-destructive' : ''"
+                    class="w-full"
                   />
+                  <p v-if="form.errors.title" class="text-sm text-destructive">{{ form.errors.title }}</p>
                 </div>
-                <Button
-                  type="button"
-                  variant="destructive"
-                  size="sm"
-                  class="absolute top-2 right-2"
-                  @click="removeImage"
-                >
-                  Remove
-                </Button>
-              </div>
 
-              <!-- No Image State -->
-              <div v-else class="w-full border-2 border-dashed border-muted-foreground/25 rounded-lg flex flex-col items-center justify-center text-muted-foreground p-8 py-12">
-                <Upload class="h-12 w-12 mb-4 opacity-50" />
-                <p class="text-sm text-center">No image selected</p>
-                <p class="text-xs text-center mt-1">Upload an image to preview</p>
-              </div>
+                <!-- Excerpt -->
+                <div class="space-y-2">
+                  <Label for="excerpt" class="text-sm font-medium">Excerpt</Label>
+                  <Textarea
+                    id="excerpt"
+                    v-model="form.excerpt"
+                    placeholder="Brief description of the article (optional)"
+                    :class="form.errors.excerpt ? 'border-destructive' : ''"
+                    rows="3"
+                    class="w-full resize-vertical min-h-[100px]"
+                  />
+                  <p v-if="form.errors.excerpt" class="text-sm text-destructive">{{ form.errors.excerpt }}</p>
+                </div>
 
-              <!-- Image Upload -->
-              <div class="space-y-2">
-                <Label for="image">Upload Image</Label>
-                <Input
-                  id="image"
-                  ref="imageFileInput"
-                  type="file"
-                  accept="image/*"
-                  @change="handleImageSelect"
-                  :class="{ 'border-destructive': form.errors.image }"
-                />
-                <p class="text-sm text-muted-foreground">
-                  Recommended: 16:9 aspect ratio. Max 2MB.
-                </p>
-                <p v-if="form.errors.image" class="text-sm text-destructive">
-                  {{ form.errors.image }}
-                </p>
-                
-                <!-- Show remove existing image indicator -->
-                <div v-if="form.remove_existing_image && hadInitialImage" class="mt-2">
-                  <Badge variant="destructive" class="text-xs">
-                    Existing image will be removed on save
-                  </Badge>
+                <!-- Content -->
+                <div class="space-y-2">
+                  <Label for="content" class="text-sm font-medium">Content *</Label>
+                  <Textarea
+                    id="content"
+                    v-model="form.content"
+                    placeholder="Write your article content here..."
+                    :class="form.errors.content ? 'border-destructive' : ''"
+                    rows="15"
+                    class="w-full resize-vertical min-h-[300px]"
+                  />
+                  <p v-if="form.errors.content" class="text-sm text-destructive">{{ form.errors.content }}</p>
                 </div>
               </div>
             </div>
           </div>
 
-          <!-- Settings Card - Moved below Featured Image -->
-          <div class="bg-card rounded-lg border shadow-sm p-4 md:p-6">
-            
-            <div class="space-y-4">
-              <!-- Featured Toggle - First -->
-              <div class="space-y-2">
-                <Label class="text-base font-medium">Featured Article</Label>
-                <div class="flex items-center justify-between p-1 border rounded-lg bg-muted/50">
-                  
-                  <div class="flex items-center space-x-2">
-                    <Toggle 
-                    :pressed="form.is_featured"
-                    @click="form.is_featured = !form.is_featured"
-                    aria-label="Toggle featured"
-                    :class="form.is_featured ? 'bg-primary text-primary-foreground' : ''"
-                  >
-                    <Star class="h-4 w-4" :class="form.is_featured ? 'text-yellow-500 fill-yellow-500' : 'text-muted-foreground'" />
-                  </Toggle>
-                    
-                    <span>Mark as featured</span>
-                    
+          <!-- Right Column - Sidebar -->
+          <div class="space-y-6">
+            <!-- Settings Card -->
+            <div class="bg-card rounded-lg border shadow-sm">
+              <div class="p-4 sm:p-6 border-b">
+                <h2 class="text-lg font-semibold">Settings</h2>
+              </div>
+              <div class="p-4 sm:p-6 space-y-6">
+                <!-- Status -->
+                <div class="space-y-2">
+                  <Label for="status" class="text-sm font-medium">Status *</Label>
+                  <Select v-model="form.status">
+                    <SelectTrigger class="w-full">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="draft">
+                        <div class="flex items-center space-x-2">
+                          <Badge variant="outline">Draft</Badge>
+                        </div>
+                      </SelectItem>
+                      <SelectItem value="published">
+                        <div class="flex items-center space-x-2">
+                          <Badge variant="default">Published</Badge>
+                        </div>
+                      </SelectItem>
+                      <SelectItem value="archived">
+                        <div class="flex items-center space-x-2">
+                          <Badge variant="secondary">Archived</Badge>
+                        </div>
+                      </SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <!-- Category -->
+                <div class="space-y-2">
+                  <Label for="category" class="text-sm font-medium">Category *</Label>
+                  <Select v-model="form.category" :class="form.errors.category ? 'border-destructive' : ''">
+                    <SelectTrigger class="w-full">
+                      <SelectValue placeholder="Select a category" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem
+                        v-for="category in categories"
+                        :key="category"
+                        :value="category"
+                      >
+                        {{ category }}
+                      </SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <p v-if="form.errors.category" class="text-sm text-destructive">{{ form.errors.category }}</p>
+                </div>
+
+                <!-- Featured Toggle -->
+                <div class="space-y-2">
+                  <Label class="text-sm font-medium">Featured Article</Label>
+                  <div class="flex items-center justify-between p-1 border rounded-lg bg-muted/50">
+                    <div class="flex items-center space-x-2">
+                      <Toggle 
+                        :pressed="form.is_featured"
+                        @click="form.is_featured = !form.is_featured"
+                        aria-label="Toggle featured"
+                        :class="form.is_featured ? 'bg-primary text-primary-foreground' : ''"
+                      >
+                        <Star class="h-4 w-4" :class="form.is_featured ? 'text-yellow-500 fill-yellow-500' : 'text-muted-foreground'" />
+                      </Toggle>
+                      <span class="text-sm">Mark as featured</span>
+                    </div>
                   </div>
-                  
+                  <p class="text-xs text-muted-foreground">
+                    Featured articles will be highlighted with a star and appear first in listings
+                  </p>
                 </div>
-                <p class="text-sm text-muted-foreground">
-                  Featured articles are highlighted on the news page
-                </p>
-                <p v-if="form.errors.is_featured" class="text-sm text-destructive">
-                  {{ form.errors.is_featured }}
-                </p>
               </div>
+            </div>
 
-              <!-- Category - Full Width -->
-              <div class="space-y-2">
-                <Label for="category">Category</Label>
-                <Select v-model="form.category">
-                  <SelectTrigger class="w-full" :class="{ 'border-destructive': form.errors.category }">
-                    <SelectValue placeholder="Select a category" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem 
-                      v-for="category in categories" 
-                      :key="category" 
-                      :value="category"
-                    >
-                      {{ category }}
-                    </SelectItem>
-                  </SelectContent>
-                </Select>
-                <p v-if="form.errors.category" class="text-sm text-destructive">
-                  {{ form.errors.category }}
-                </p>
+            <!-- Media Card -->
+            <div class="bg-card rounded-lg border shadow-sm">
+              <div class="p-4 sm:p-6 border-b">
+                <h2 class="text-lg font-semibold">Featured Image</h2>
               </div>
+              <div class="p-4 sm:p-6 space-y-4">
+                <!-- Image Upload Area -->
+                <div class="space-y-4">
+                  <!-- File Input -->
+                  <div class="space-y-2">
+                    <Label for="image" class="text-sm font-medium">Upload Image</Label>
+                    <Input
+                      id="image"
+                      ref="imageFileInput"
+                      type="file"
+                      accept="image/jpeg,image/png,image/jpg,image/gif,image/webp"
+                      @change="handleImageSelect"
+                      :class="form.errors.image ? 'border-destructive' : ''"
+                      class="w-full cursor-pointer"
+                    />
+                    <p class="text-xs text-muted-foreground">
+                      Supported formats: JPEG, PNG, JPG, GIF, WEBP. Max size: 10MB
+                    </p>
+                    <p v-if="form.errors.image" class="text-sm text-destructive">{{ form.errors.image }}</p>
+                  </div>
 
-              <!-- Status - Full Width -->
-              <div class="space-y-2">
-                <Label for="status">Status</Label>
-                <Select v-model="form.status">
-                  <SelectTrigger class="w-full" :class="{ 'border-destructive': form.errors.status }">
-                    <SelectValue placeholder="Select status" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="draft">Draft</SelectItem>
-                    <SelectItem value="published">Published</SelectItem>
-                    <SelectItem value="archived">Archived</SelectItem>
-                  </SelectContent>
-                </Select>
-                <p v-if="form.errors.status" class="text-sm text-destructive">
-                  {{ form.errors.status }}
-                </p>
+                  <!-- Image Preview -->
+                  <div v-if="imagePreview" class="space-y-3">
+                    <div class="relative group">
+                      <img 
+                        :src="imagePreview" 
+                        alt="Featured image preview" 
+                        class="w-full h-48 sm:h-64 object-cover rounded-lg border"
+                      />
+                      <Button
+                        @click="removeImage"
+                        variant="destructive"
+                        size="sm"
+                        class="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity"
+                      >
+                        <Trash2 class="h-4 w-4" />
+                      </Button>
+                    </div>
+                    <div class="flex items-center justify-between text-xs text-muted-foreground">
+                      <span>Preview</span>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        @click="removeImage"
+                        class="h-7 text-xs"
+                      >
+                        Remove Image
+                      </Button>
+                    </div>
+                  </div>
+
+                  <!-- Upload Prompt (when no image) -->
+                  <div v-if="!imagePreview && !form.remove_existing_image && props.article.image_url" class="space-y-3">
+                    <div class="relative">
+                      <img 
+                        :src="props.article.image_url" 
+                        alt="Current featured image" 
+                        class="w-full h-48 sm:h-64 object-cover rounded-lg border"
+                      />
+                      <Button
+                        @click="removeImage"
+                        variant="destructive"
+                        size="sm"
+                        class="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity"
+                      >
+                        <Trash2 class="h-4 w-4" />
+                      </Button>
+                    </div>
+                    <div class="flex items-center justify-between text-xs text-muted-foreground">
+                      <span>Current Image</span>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        @click="removeImage"
+                        class="h-7 text-xs"
+                      >
+                        Remove Image
+                      </Button>
+                    </div>
+                  </div>
+
+                  <div v-if="!imagePreview && (!props.article.image_url || form.remove_existing_image)" class="border-2 border-dashed border-muted-foreground/25 rounded-lg p-6 text-center">
+                    <Upload class="h-8 w-8 text-muted-foreground mx-auto mb-2" />
+                    <p class="text-sm font-medium text-foreground mb-1">No image selected</p>
+                    <p class="text-xs text-muted-foreground">
+                      Choose a file above to upload
+                    </p>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Actions Card -->
+            <div class="bg-card rounded-lg border shadow-sm">
+              <div class="p-4 sm:p-6">
+                <div class="space-y-3">
+                  <Button
+                    type="button"
+                    @click="openSaveDialog"
+                    :disabled="form.processing"
+                    class="w-full"
+                    size="lg"
+                  >
+                    <Save class="h-4 w-4 mr-2" />
+                    <span v-if="form.processing">Saving...</span>
+                    <span v-else>Save Changes</span>
+                  </Button>
+                  
+                  <Button
+                    type="button"
+                    variant="outline"
+                    @click="openCancelDialog"
+                    :disabled="form.processing"
+                    class="w-full"
+                  >
+                    <ArrowLeft class="h-4 w-4 mr-2" />
+                    Cancel
+                  </Button>
+
+                  <Button
+                    type="button"
+                    variant="destructive"
+                    @click="openDeleteDialog"
+                    :disabled="form.processing"
+                    class="w-full"
+                  >
+                    <Trash2 class="h-4 w-4 mr-2" />
+                    Delete Article
+                  </Button>
+                </div>
               </div>
             </div>
           </div>
-        </div>
-      </div>
-
-      <!-- Action Buttons -->
-      <div class="flex flex-col sm:flex-row items-center justify-between gap-4 mt-8 p-4 bg-card rounded-lg border shadow-sm">
-        <!-- Navigation Buttons -->
-        <div class="flex flex-wrap gap-2">
-          <!-- Back to News List Button -->
-          <Button variant="outline" size="sm" @click="handleBackToList">
-            <ArrowLeft class="h-4 w-4 mr-2" />
-            Back to News
-          </Button>
-          
-          <!-- Back to Article Button -->
-          <Button variant="outline" size="sm" @click="handleBackToArticle">
-            <Eye class="h-4 w-4 mr-2" />
-            View Article
-          </Button>
-        </div>
-
-        <!-- Action Buttons -->
-        <div class="flex flex-wrap gap-2">
-          <!-- Save Button -->
-          <Button 
-            size="sm" 
-            @click="submit" 
-            :disabled="form.processing"
-          >
-            <Save class="h-4 w-4 mr-2" />
-            {{ form.processing ? 'Saving...' : 'Save Changes' }}
-          </Button>
-          
-          <!-- Delete Button -->
-          <Button variant="destructive" size="sm" @click="openDeleteDialog">
-            <Trash2 class="h-4 w-4 mr-2" />
-            Delete
-          </Button>
         </div>
       </div>
     </div>
+
+    <!-- Save Changes Confirmation Dialog -->
+    <AlertDialog v-model:open="saveDialogOpen">
+      <AlertDialogContent>
+        <AlertDialogHeader>
+          <AlertDialogTitle>Save Changes?</AlertDialogTitle>
+          <AlertDialogDescription>
+            Are you sure you want to save the changes to this news article?
+            <div class="mt-4 p-3 bg-muted rounded-lg space-y-2">
+              <div class="flex justify-between">
+                <span class="font-medium">Title:</span>
+                <span>{{ articleSummary.title }}</span>
+              </div>
+              <div class="flex justify-between">  
+                <span class="font-medium">Category:</span>
+                <span>{{ articleSummary.category }}</span>
+              </div>
+              <div class="flex justify-between">
+                <span class="font-medium">Status:</span>
+                <Badge :variant="articleSummary.status === 'published' ? 'default' : articleSummary.status === 'draft' ? 'outline' : 'secondary'">
+                  {{ articleSummary.status }}
+                </Badge>
+              </div>
+              <div class="flex justify-between">
+                <span class="font-medium">Featured:</span>
+                <span>{{ articleSummary.isFeatured ? 'Yes' : 'No' }}</span>
+              </div>
+              <div class="flex justify-between">
+                <span class="font-medium">Image:</span>
+                <span>{{ articleSummary.hasImage ? 'Yes' : 'No' }}</span>
+              </div>
+            </div>
+          </AlertDialogDescription>
+        </AlertDialogHeader>
+        <AlertDialogFooter>
+          <AlertDialogCancel @click="saveDialogOpen = false">
+            Continue Editing
+          </AlertDialogCancel>
+          <AlertDialogAction @click="confirmSave">
+            Save Changes
+          </AlertDialogAction>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
+
+    <!-- Cancel Confirmation Dialog -->
+    <AlertDialog v-model:open="cancelDialogOpen">
+      <AlertDialogContent>
+        <AlertDialogHeader>
+          <AlertDialogTitle>Cancel Changes?</AlertDialogTitle>
+          <AlertDialogDescription>
+            <span v-if="hasUnsavedChanges">
+              You have unsaved changes. If you cancel now, all your changes will be lost.
+            </span>
+            <span v-else>
+              This will cancel the editing and return you to the news list.
+            </span>
+          </AlertDialogDescription>
+        </AlertDialogHeader>
+        <AlertDialogFooter>
+          <AlertDialogCancel @click="cancelDialogOpen = false">
+            Continue Editing
+          </AlertDialogCancel>
+          <AlertDialogAction @click="confirmCancel">
+            Cancel Changes
+          </AlertDialogAction>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
 
     <!-- Delete Confirmation Dialog -->
     <AlertDialog v-model:open="deleteDialogOpen">
@@ -477,16 +664,41 @@ const openDeleteDialog = () => {
 </template>
 
 <style scoped>
-/* Responsive adjustments for smaller screens */
-@media (max-width: 1024px) {
-  .flex-col.lg\:flex-row {
-    flex-direction: column;
+.resize-vertical {
+  resize: vertical;
+}
+
+/* Custom scrollbar for textareas */
+textarea::-webkit-scrollbar {
+  width: 6px;
+}
+
+textarea::-webkit-scrollbar-track {
+  background: #f1f1f1;
+  border-radius: 3px;
+}
+
+textarea::-webkit-scrollbar-thumb {
+  background: #c1c1c1;
+  border-radius: 3px;
+}
+
+textarea::-webkit-scrollbar-thumb:hover {
+  background: #a8a8a8;
+}
+
+/* Dark mode support */
+@media (prefers-color-scheme: dark) {
+  textarea::-webkit-scrollbar-track {
+    background: #374151;
   }
-  
-  .lg\:w-96 {
-    width: 100%;
-    max-width: 400px;
-    margin: 0 auto;
+
+  textarea::-webkit-scrollbar-thumb {
+    background: #6b7280;
+  }
+
+  textarea::-webkit-scrollbar-thumb:hover {
+    background: #9ca3af;
   }
 }
 </style>
