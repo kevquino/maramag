@@ -26,7 +26,8 @@ import {
     Briefcase,
     FileText,
     Users,
-    Activity
+    Activity,
+    Trash
 } from 'lucide-vue-next';
 import AppLogo from './AppLogo.vue';
 
@@ -104,6 +105,11 @@ const adminItems: NavItem[] = [
         title: 'Activity Logs',
         href: '/activity-logs',
         icon: Activity,
+    },
+    {
+        title: 'Trash',
+        href: '/trash',
+        icon: Trash,
     },
 ];
 

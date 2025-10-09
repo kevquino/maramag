@@ -1,42 +1,58 @@
 <?php
-// routes/web.php
 
 use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
 use App\Http\Controllers\NewsController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\BidsAwardsController;
+use App\Http\Controllers\FullDisclosureController;
+use App\Http\Controllers\TourismPackageController;
+use App\Http\Controllers\AwardsRecognitionController; // Add this line
 
 Route::get('/', function () {
     return Inertia::render('Welcome');
 })->name('home');
 
-// Update dashboard route to use controller
 Route::get('dashboard', [DashboardController::class, 'index'])
     ->middleware(['auth', 'verified'])
     ->name('dashboard');
 
-// Add API route for dashboard stats
 Route::get('/api/dashboard/stats', [DashboardController::class, 'stats'])
     ->middleware(['auth'])
     ->name('dashboard.stats');
 
 Route::middleware(['auth'])->group(function () {
-    // News management routes - using resource for standard CRUD
+    // News routes
     Route::resource('news', NewsController::class)->except(['show']);
-    
-    // Additional news management routes
     Route::post('/news/{news}/status', [NewsController::class, 'updateStatus'])->name('news.status');
     Route::post('/news/{news}/toggle-featured', [NewsController::class, 'toggleFeatured'])->name('news.toggle-featured');
 
-    // Bids & Awards management routes
+    // Bids & Awards routes
     Route::resource('bids-awards', BidsAwardsController::class);
     Route::post('/bids-awards/{bids_award}/toggle-featured', [BidsAwardsController::class, 'toggleFeatured'])->name('bids-awards.toggle-featured');
+
+    // Tourism Packages routes
+    Route::resource('tourism', TourismPackageController::class);
+    Route::post('/tourism/{tourism_package}/toggle-featured', [TourismPackageController::class, 'toggleFeatured'])->name('tourism.toggle-featured');
+    Route::post('/tourism/{tourism_package}/toggle-status', [TourismPackageController::class, 'toggleStatus'])->name('tourism.toggle-status');
+
+    // Awards & Recognition routes - ADD THESE
+    Route::resource('awards-recognition', AwardsRecognitionController::class);
+    Route::post('/awards-recognition/{awards_recognition}/toggle-featured', [AwardsRecognitionController::class, 'toggleFeatured'])->name('awards-recognition.toggle-featured');
+    Route::post('/awards-recognition/{awards_recognition}/toggle-status', [AwardsRecognitionController::class, 'toggleStatus'])->name('awards-recognition.toggle-status');
 });
 
-// Public show routes (accessible without auth if needed)
+// Public show routes
 Route::get('/news/{news}', [NewsController::class, 'show'])->name('news.show');
 Route::get('/bids-awards/{bids_award}', [BidsAwardsController::class, 'show'])->name('bids-awards.show');
+Route::get('/tourism/{tourism_package}', [TourismPackageController::class, 'show'])->name('tourism.show');
+Route::get('/awards-recognition/{awards_recognition}', [AwardsRecognitionController::class, 'show'])->name('awards-recognition.show'); // Add this
+
+Route::middleware(['auth'])->group(function () {
+    // Full Disclosure routes
+    Route::resource('full-disclosure', FullDisclosureController::class);
+    Route::get('/full-disclosure/{full_disclosure}/download', [FullDisclosureController::class, 'download'])->name('full-disclosure.download');
+});
 
 require __DIR__.'/settings.php';
 require __DIR__.'/auth.php';

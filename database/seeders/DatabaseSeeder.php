@@ -1,5 +1,4 @@
 <?php
-// database/seeders/DatabaseSeeder.php
 
 namespace Database\Seeders;
 
@@ -12,6 +11,9 @@ class DatabaseSeeder extends Seeder
         $this->call([
             NewsSeeder::class,
             BidsAwardsSeeder::class,
+            FullDisclosureSeeder::class,
+            TourismPackageSeeder::class,
+            AwardsRecognitionSeeder::class, // Add this line
         ]);
     }
 }
