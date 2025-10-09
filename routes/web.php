@@ -1,4 +1,5 @@
 <?php
+// routes/web.php
 
 use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
@@ -7,7 +8,8 @@ use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\BidsAwardsController;
 use App\Http\Controllers\FullDisclosureController;
 use App\Http\Controllers\TourismPackageController;
-use App\Http\Controllers\AwardsRecognitionController; // Add this line
+use App\Http\Controllers\AwardsRecognitionController;
+use App\Http\Controllers\SangguniangBayanController; // Add this line
 
 Route::get('/', function () {
     return Inertia::render('Welcome');
@@ -36,17 +38,24 @@ Route::middleware(['auth'])->group(function () {
     Route::post('/tourism/{tourism_package}/toggle-featured', [TourismPackageController::class, 'toggleFeatured'])->name('tourism.toggle-featured');
     Route::post('/tourism/{tourism_package}/toggle-status', [TourismPackageController::class, 'toggleStatus'])->name('tourism.toggle-status');
 
-    // Awards & Recognition routes - ADD THESE
+    // Awards & Recognition routes
     Route::resource('awards-recognition', AwardsRecognitionController::class);
     Route::post('/awards-recognition/{awards_recognition}/toggle-featured', [AwardsRecognitionController::class, 'toggleFeatured'])->name('awards-recognition.toggle-featured');
     Route::post('/awards-recognition/{awards_recognition}/toggle-status', [AwardsRecognitionController::class, 'toggleStatus'])->name('awards-recognition.toggle-status');
+
+    // Sangguniang Bayan routes - ADD THESE
+    Route::resource('sangguniang-bayan', SangguniangBayanController::class);
+    Route::post('/sangguniang-bayan/{sangguniang_bayan}/toggle-featured', [SangguniangBayanController::class, 'toggleFeatured'])->name('sangguniang-bayan.toggle-featured');
+    Route::post('/sangguniang-bayan/{sangguniang_bayan}/toggle-status', [SangguniangBayanController::class, 'toggleStatus'])->name('sangguniang-bayan.toggle-status');
+    Route::post('/sangguniang-bayan/reorder', [SangguniangBayanController::class, 'reorder'])->name('sangguniang-bayan.reorder');
 });
 
 // Public show routes
 Route::get('/news/{news}', [NewsController::class, 'show'])->name('news.show');
 Route::get('/bids-awards/{bids_award}', [BidsAwardsController::class, 'show'])->name('bids-awards.show');
 Route::get('/tourism/{tourism_package}', [TourismPackageController::class, 'show'])->name('tourism.show');
-Route::get('/awards-recognition/{awards_recognition}', [AwardsRecognitionController::class, 'show'])->name('awards-recognition.show'); // Add this
+Route::get('/awards-recognition/{awards_recognition}', [AwardsRecognitionController::class, 'show'])->name('awards-recognition.show');
+Route::get('/sangguniang-bayan/{sangguniang_bayan}', [SangguniangBayanController::class, 'show'])->name('sangguniang-bayan.show'); // Add this
 
 Route::middleware(['auth'])->group(function () {
     // Full Disclosure routes

@@ -14,6 +14,7 @@ class DatabaseSeeder extends Seeder
             FullDisclosureSeeder::class,
             TourismPackageSeeder::class,
             AwardsRecognitionSeeder::class, // Add this line
+            SangguniangBayanMemberSeeder::class,
         ]);
     }
 }

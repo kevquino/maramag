@@ -86,7 +86,7 @@ const businessPermitItems: NavItem[] = [
 const sanggunianItems: NavItem[] = [
     {
         title: 'Sagguniang Bayan',
-        href: '/sanggunian-bayan',
+        href: '/sangguniang-bayan',
         icon: FileText,
     },{
         title: 'Ordinance & Resolutions',
