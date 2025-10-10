@@ -101,6 +101,11 @@ watch(() => page.props.flash as FlashMessages | undefined, (newFlash, oldFlash) 
       toast.error(currentFlash.error!);
     });
   }
+  if (currentFlash?.info && currentFlash.info !== previousFlash?.info) {
+    nextTick(() => {
+      toast.info(currentFlash.info!);
+    });
+  }
 }, { deep: true, immediate: true });
 
 const breadcrumbs: BreadcrumbItem[] = [
@@ -129,6 +134,13 @@ const statusFilter = ref(props.filters?.status || '')
 const deleteDialogOpen = ref(false)
 const memberToDelete = ref<SangguniangBayanMember | null>(null)
 const deleting = ref(false)
+
+// Drag and drop state
+const dragState = ref({
+  isDragging: false,
+  draggedId: null as string | null,
+  dragOverId: null as string | null
+})
 
 // Search timeout reference
 let searchTimeout: number | null = null
@@ -288,10 +300,120 @@ const handleStatusToggle = (member: SangguniangBayanMember) => {
   })
 }
 
+// Simple drag and drop handlers
+const startDrag = (member: SangguniangBayanMember) => {
+  dragState.value = {
+    isDragging: true,
+    draggedId: member.id,
+    dragOverId: null
+  }
+}
+
+const handleDragOver = (event: DragEvent, member: SangguniangBayanMember) => {
+  event.preventDefault()
+  if (dragState.value.draggedId !== member.id) {
+    dragState.value.dragOverId = member.id
+  }
+}
+
+const handleDragLeave = () => {
+  dragState.value.dragOverId = null
+}
+
+const handleDrop = async (event: DragEvent, targetMember: SangguniangBayanMember) => {
+  event.preventDefault()
+  
+  if (!dragState.value.draggedId || dragState.value.draggedId === targetMember.id) {
+    resetDragState()
+    return
+  }
+
+  try {
+    const draggedMember = data.value.find(m => m.id === dragState.value.draggedId)
+    if (!draggedMember) {
+      resetDragState()
+      return
+    }
+
+    // Update order locally for immediate feedback
+    const updatedData = [...data.value]
+    const draggedIndex = updatedData.findIndex(m => m.id === dragState.value.draggedId)
+    const targetIndex = updatedData.findIndex(m => m.id === targetMember.id)
+    
+    if (draggedIndex === -1 || targetIndex === -1) {
+      resetDragState()
+      return
+    }
+
+    // Remove dragged item and insert at target position
+    const [movedItem] = updatedData.splice(draggedIndex, 1)
+    updatedData.splice(targetIndex, 0, movedItem)
+    
+    // Update order numbers
+    updatedData.forEach((member, index) => {
+      member.order = index + 1
+    })
+    
+    // Update the reactive data - this should trigger table refresh
+    data.value = updatedData
+
+    // Send update to server - use preserveState: false to force refresh
+    await handleOrderUpdate(draggedMember.id, targetIndex + 1)
+    
+  } catch (error) {
+    console.error('Drop error:', error)
+    toast.error('Failed to update member order')
+    reloadPage()
+  } finally {
+    resetDragState()
+  }
+}
+
+const resetDragState = () => {
+  dragState.value = {
+    isDragging: false,
+    draggedId: null,
+    dragOverId: null
+  }
+}
+
+// Enhanced order update handler - force refresh after update
+const handleOrderUpdate = async (memberId: string, newOrder: number) => {
+  try {
+    await router.post(`/sangguniang-bayan/${memberId}/update-order`, {
+      order: newOrder
+    }, {
+      preserveScroll: true,
+      preserveState: false, // Changed to false to force refresh
+      onSuccess: () => {
+        // The page will refresh automatically due to preserveState: false
+        // Success message will be shown via flash message watcher
+      },
+      onError: (errors) => {
+        console.error('Order update error:', errors)
+        let errorMsg = 'Failed to update member order'
+        if (typeof errors === 'string') {
+          errorMsg = errors
+        } else if (errors && typeof errors === 'object' && 'message' in errors) {
+          errorMsg = (errors as any).message
+        } else if (errors && typeof errors === 'object' && 'error' in errors) {
+          errorMsg = (errors as any).error
+        }
+        toast.error(errorMsg)
+        reloadPage()
+      }
+    })
+  } catch (error) {
+    console.error('Order update failed:', error)
+    toast.error('Failed to update member order')
+    reloadPage()
+  }
+}
+
 // Utility functions
 const getImageUrl = (imagePath: string | null) => {
-  if (!imagePath) return null;
-  return `/storage/${imagePath}`;
+  if (!imagePath) return '/images/default-avatar.png'
+  return `/storage/${imagePath}`
 }
 
 const getPositionTypeIcon = (positionType: string) => {
@@ -315,9 +437,9 @@ const getPositionTypeBadgeVariant = (positionType: string) => {
 
 // Event handler for input events with proper typing
 const handleSearchInput = (event: Event) => {
-  const target = event.target as HTMLInputElement;
+  const target = event.target as HTMLInputElement
   if (target) {
-    handleSearch(target.value);
+    handleSearch(target.value)
   }
 }
 
@@ -343,42 +465,54 @@ const isStatusSelected = (value: string) => {
 // Columns definition
 const columns: ColumnDef<SangguniangBayanMember>[] = [
   {
-    id: "select",
-    header: ({ table }) => h(Checkbox, {
-      "checked": table.getIsAllPageRowsSelected() || (table.getIsSomePageRowsSelected() && "indeterminate"),
-      "onUpdate:checked": (value: boolean | "indeterminate") => table.toggleAllPageRowsSelected(!!value),
-      "ariaLabel": "Select all",
-    }),
-    cell: ({ row }) => h(Checkbox, {
-      "checked": row.getIsSelected(),
-      "onUpdate:checked": (value: boolean | "indeterminate") => row.toggleSelected(!!value),
-      "ariaLabel": "Select row",
-    }),
-    enableSorting: false,
-    enableHiding: false,
-  },
-  {
     accessorKey: "order",
     header: "Order",
-    cell: ({ row }) => h("div", { class: "flex items-center justify-center w-8" }, [
-      h(GripVertical, { class: "h-4 w-4 text-muted-foreground" }),
-    ]),
+    cell: ({ row }) => {
+      const member = row.original
+      const isBeingDragged = dragState.value.draggedId === member.id
+      const isDragOver = dragState.value.dragOverId === member.id
+      
+      return h("div", { 
+        class: `flex items-center justify-center w-8 cursor-grab active:cursor-grabbing transition-all duration-200 ${
+          isBeingDragged ? 'opacity-50' : 
+          isDragOver ? 'bg-blue-100 rounded' : 
+          'opacity-100'
+        }`,
+        draggable: true,
+        onDragstart: () => startDrag(member),
+        onDragend: resetDragState,
+      }, [
+        h(GripVertical, { 
+          class: `h-4 w-4 transition-colors ${
+            isBeingDragged ? 'text-primary' : 
+            isDragOver ? 'text-blue-600' : 
+            'text-muted-foreground'
+          }` 
+        }),
+      ])
+    },
   },
   {
     accessorKey: "name",
     header: "Member Details",
     cell: ({ row }) => {
-      const member = row.original;
-      const PositionIcon = getPositionTypeIcon(member.position_type);
-      return h("div", { class: "flex items-start space-x-3 min-w-[300px]" }, [
-        member.photo ? h("div", { class: "flex-shrink-0" }, [
+      const member = row.original
+      const isDragOver = dragState.value.dragOverId === member.id
+      
+      return h("div", { 
+        class: `flex items-start space-x-3 min-w-[300px] transition-all duration-200 ${
+          isDragOver ? 'bg-blue-50 border-l-4 border-blue-400 pl-2' : ''
+        }`,
+        onDragover: (event: DragEvent) => handleDragOver(event, member),
+        onDragleave: handleDragLeave,
+        onDrop: (event: DragEvent) => handleDrop(event, member)
+      }, [
+        h("div", { class: "flex-shrink-0" }, [
           h("img", {
             src: getImageUrl(member.photo),
             alt: member.name,
             class: "w-12 h-12 rounded-full object-cover border"
           })
-        ]) : h("div", { class: "flex-shrink-0 w-12 h-12 rounded-full bg-muted flex items-center justify-center" }, [
-          h(User, { class: "h-5 w-5 text-muted-foreground" })
         ]),
         h("div", { class: "min-w-0 flex-1" }, [
           h("div", { class: "flex items-center space-x-2" }, [
@@ -411,31 +545,6 @@ const columns: ColumnDef<SangguniangBayanMember>[] = [
     },
   },
   {
-    accessorKey: "district",
-    header: "District",
-    cell: ({ row }) => row.original.district ? h("div", { class: "flex items-center space-x-1 px-2" }, [
-      h(MapPin, { class: "h-3 w-3 text-muted-foreground" }),
-      h("span", { class: "text-sm" }, row.original.district)
-    ]) : h("span", { class: "text-sm text-muted-foreground px-2" }, "N/A"),
-  },
-  {
-    accessorKey: "contact",
-    header: "Contact",
-    cell: ({ row }) => {
-      const member = row.original;
-      return h("div", { class: "flex flex-col space-y-1 px-2" }, [
-        member.email && h("div", { class: "flex items-center space-x-1" }, [
-          h(Mail, { class: "h-3 w-3 text-muted-foreground" }),
-          h("span", { class: "text-xs truncate" }, member.email)
-        ]),
-        member.phone && h("div", { class: "flex items-center space-x-1" }, [
-          h(Phone, { class: "h-3 w-3 text-muted-foreground" }),
-          h("span", { class: "text-xs" }, member.phone)
-        ])
-      ])
-    },
-  },
-  {
     accessorKey: "committees",
     header: "Committees",
     cell: ({ row }) => {
@@ -454,21 +563,6 @@ const columns: ColumnDef<SangguniangBayanMember>[] = [
         ),
         committees.length > 2 && h("div", { class: "text-xs text-muted-foreground mt-1" }, 
           `+${committees.length - 2} more`
-        )
-      ])
-    },
-  },
-  {
-    accessorKey: "term",
-    header: "Term",
-    cell: ({ row }) => {
-      const member = row.original;
-      return h("div", { class: "flex items-center space-x-1 px-2" }, [
-        h(Calendar, { class: "h-3 w-3 text-muted-foreground" }),
-        h("span", { class: "text-sm" }, 
-          member.term_start && member.term_end 
-            ? `${member.term_start} - ${member.term_end}`
-            : member.term_start || 'N/A'
         )
       ])
     },
@@ -625,6 +719,14 @@ watch(() => props.filters, (newFilters) => {
         </Link>
       </div>
 
+      <!-- Drag and Drop Instructions -->
+      <div class="bg-blue-50 border border-blue-200 rounded-lg p-4">
+        <div class="flex items-center space-x-2 text-blue-800">
+          <GripVertical class="h-4 w-4" />
+          <p class="text-sm font-medium">Drag and drop members using the grip icon to reorder them</p>
+        </div>
+      </div>
+
       <!-- Filters Section -->
       <div class="bg-card rounded-lg border p-4 shadow-sm">
         <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
@@ -771,7 +873,7 @@ watch(() => props.filters, (newFilters) => {
         :columns="columns"
         :loading="loading"
         :search-query="searchQuery"
-        :enable-row-selection="true"
+        :enable-row-selection="false"
         :enable-column-visibility="false"
       />
 
