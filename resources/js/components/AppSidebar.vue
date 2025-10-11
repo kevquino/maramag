@@ -83,14 +83,16 @@ const businessPermitItems: NavItem[] = [
     },
 ];
 
+// Update the sanggunianItems array in AppSidebar.vue
 const sanggunianItems: NavItem[] = [
     {
-        title: 'Sagguniang Bayan',
+        title: 'Sangguniang Bayan',
         href: '/sangguniang-bayan',
-        icon: FileText,
-    },{
+        icon: Users,
+    },
+    {
         title: 'Ordinance & Resolutions',
-        href: '/ordinances-resolutions',
+        href: '/ordinance-resolutions',
         icon: FileText,
     },
 ];

@@ -10,6 +10,7 @@ use App\Http\Controllers\FullDisclosureController;
 use App\Http\Controllers\TourismPackageController;
 use App\Http\Controllers\AwardsRecognitionController;
 use App\Http\Controllers\SangguniangBayanController;
+use App\Http\Controllers\OrdinanceResolutionController;
 
 Route::get('/', function () {
     return Inertia::render('Welcome');
@@ -62,6 +63,16 @@ Route::middleware(['auth'])->group(function () {
     Route::resource('full-disclosure', FullDisclosureController::class);
     Route::get('/full-disclosure/{full_disclosure}/download', [FullDisclosureController::class, 'download'])->name('full-disclosure.download');
 });
+
+// Ordinance & Resolution routes
+Route::resource('ordinance-resolutions', OrdinanceResolutionController::class);
+Route::post('/ordinance-resolutions/{ordinance_resolution}/toggle-featured', [OrdinanceResolutionController::class, 'toggleFeatured'])->name('ordinance-resolutions.toggle-featured');
+Route::post('/ordinance-resolutions/{ordinance_resolution}/toggle-status', [OrdinanceResolutionController::class, 'toggleStatus'])->name('ordinance-resolutions.toggle-status');
+Route::get('/ordinance-resolutions/{ordinance_resolution}/download', [OrdinanceResolutionController::class, 'download'])->name('ordinance-resolutions.download');
+
+// Public show route
+Route::get('/ordinance-resolutions/{ordinance_resolution}', [OrdinanceResolutionController::class, 'show'])->name('ordinance-resolutions.show');
+
 
 require __DIR__.'/settings.php';
 require __DIR__.'/auth.php';
