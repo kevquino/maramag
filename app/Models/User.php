@@ -1,51 +1,54 @@
 <?php
+// app/Models/User.php
 
 namespace App\Models;
 
-// use Illuminate\Contracts\Auth\MustVerifyEmail;
+use Illuminate\Contracts\Auth\MustVerifyEmail;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 use Laravel\Fortify\TwoFactorAuthenticatable;
-use Illuminate\Database\Eloquent\Relations\HasMany;
 
-class User extends Authenticatable
+class User extends Authenticatable implements MustVerifyEmail
 {
-    /** @use HasFactory<\Database\Factories\UserFactory> */
     use HasFactory, Notifiable, TwoFactorAuthenticatable;
 
-    /**
-     * The attributes that are mass assignable.
-     *
-     * @var list<string>
-     */
     protected $fillable = [
         'name',
         'email',
         'password',
-        'role', // Added role to fillable
+        'role',
+        'is_active',
+        'last_login_at', // Add this
     ];
 
-    /**
-     * The attributes that should be hidden for serialization.
-     *
-     * @var list<string>
-     */
     protected $hidden = [
         'password',
         'remember_token',
+        'two_factor_recovery_codes',
+        'two_factor_secret',
     ];
 
-    /**
-     * Get the attributes that should be cast.
-     *
-     * @return array<string, string>
-     */
     protected function casts(): array
     {
         return [
             'email_verified_at' => 'datetime',
             'password' => 'hashed',
+            'last_login_at' => 'datetime', // Add this
+            'is_active' => 'boolean',
+        ];
+    }
+
+    /**
+     * Available roles
+     */
+    public static function getRoles(): array
+    {
+        return [
+            'admin' => 'Administrator',
+            'PIO Officer' => 'PIO Officer',
+            'PIO Staff' => 'PIO Staff',
+            'user' => 'Regular User',
         ];
     }
 
@@ -82,31 +85,10 @@ class User extends Authenticatable
     }
 
     /**
-     * Relationship with news articles
+     * Check if user is active
      */
-    public function newsArticles()
+    public function isActive(): bool
     {
-        return $this->hasMany(News::class, 'author_id');
-    }
-
-    /**
-     * Relationship with activities
-     */
-    public function activities(): HasMany
-    {
-        return $this->hasMany(Activity::class);
-    }
-
-    /**
-     * Log an activity for this user.
-     */
-    public function logActivity(string $description, string $type, array $metadata = []): Activity
-    {
-        return Activity::create([
-            'description' => $description,
-            'type' => $type,
-            'metadata' => $metadata,
-            'user_id' => $this->id,
-        ]);
+        return $this->is_active ?? true;
     }
 }

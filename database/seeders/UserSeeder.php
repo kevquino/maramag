@@ -1,4 +1,5 @@
 <?php
+// database/seeders/UserSeeder.php
 
 namespace Database\Seeders;
 
@@ -16,6 +17,7 @@ class UserSeeder extends Seeder
             'email' => 'admin@example.com',
             'password' => Hash::make('password'),
             'role' => 'admin',
+            'is_active' => true,
             'email_verified_at' => now(),
         ]);
 
@@ -25,6 +27,7 @@ class UserSeeder extends Seeder
             'email' => 'pio.officer@example.com',
             'password' => Hash::make('password'),
             'role' => 'PIO Officer',
+            'is_active' => true,
             'email_verified_at' => now(),
         ]);
 
@@ -34,6 +37,7 @@ class UserSeeder extends Seeder
             'email' => 'pio.staff@example.com',
             'password' => Hash::make('password'),
             'role' => 'PIO Staff',
+            'is_active' => true,
             'email_verified_at' => now(),
         ]);
 
@@ -43,7 +47,11 @@ class UserSeeder extends Seeder
             'email' => 'user@example.com',
             'password' => Hash::make('password'),
             'role' => 'user',
+            'is_active' => true,
             'email_verified_at' => now(),
         ]);
+
+        // Create additional test users if needed
+        // User::factory(10)->create();
     }
 }

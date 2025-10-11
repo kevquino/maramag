@@ -11,6 +11,7 @@ use App\Http\Controllers\TourismPackageController;
 use App\Http\Controllers\AwardsRecognitionController;
 use App\Http\Controllers\SangguniangBayanController;
 use App\Http\Controllers\OrdinanceResolutionController;
+use App\Http\Controllers\UserManagementController;
 
 Route::get('/', function () {
     return Inertia::render('Welcome');
@@ -44,11 +45,15 @@ Route::middleware(['auth'])->group(function () {
     Route::post('/awards-recognition/{awards_recognition}/toggle-featured', [AwardsRecognitionController::class, 'toggleFeatured'])->name('awards-recognition.toggle-featured');
     Route::post('/awards-recognition/{awards_recognition}/toggle-status', [AwardsRecognitionController::class, 'toggleStatus'])->name('awards-recognition.toggle-status');
 
-    // Sangguniang Bayan routes - UPDATED
+    // Sangguniang Bayan routes
     Route::resource('sangguniang-bayan', SangguniangBayanController::class);
     Route::post('/sangguniang-bayan/{sangguniang_bayan}/toggle-featured', [SangguniangBayanController::class, 'toggleFeatured'])->name('sangguniang-bayan.toggle-featured');
     Route::post('/sangguniang-bayan/{sangguniang_bayan}/toggle-status', [SangguniangBayanController::class, 'toggleStatus'])->name('sangguniang-bayan.toggle-status');
     Route::post('/sangguniang-bayan/{sangguniang_bayan}/update-order', [SangguniangBayanController::class, 'updateOrder'])->name('sangguniang-bayan.update-order');
+
+    // User Management routes
+    Route::resource('user-management', UserManagementController::class);
+    Route::post('/user-management/{user}/toggle-status', [UserManagementController::class, 'toggleStatus'])->name('user-management.toggle-status');
 });
 
 // Public show routes
@@ -72,7 +77,6 @@ Route::get('/ordinance-resolutions/{ordinance_resolution}/download', [OrdinanceR
 
 // Public show route
 Route::get('/ordinance-resolutions/{ordinance_resolution}', [OrdinanceResolutionController::class, 'show'])->name('ordinance-resolutions.show');
-
 
 require __DIR__.'/settings.php';
 require __DIR__.'/auth.php';
