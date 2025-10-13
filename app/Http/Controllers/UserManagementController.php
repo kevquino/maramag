@@ -22,7 +22,7 @@ class UserManagementController extends Controller
             abort(403, 'Unauthorized action.');
         }
 
-        $filters = $request->only(['search', 'role', 'status']);
+        $filters = $request->only(['search', 'role', 'status', 'office']);
         
         $users = User::query()
             ->when($filters['search'] ?? null, function ($query, $search) {
@@ -33,6 +33,9 @@ class UserManagementController extends Controller
             })
             ->when($filters['role'] ?? null, function ($query, $role) {
                 $query->where('role', $role);
+            })
+            ->when($filters['office'] ?? null, function ($query, $office) {
+                $query->where('office', $office);
             })
             ->when(isset($filters['status']), function ($query) use ($filters) {
                 $query->where('is_active', $filters['status'] === 'active');
@@ -45,6 +48,7 @@ class UserManagementController extends Controller
             'users' => $users,
             'filters' => $filters,
             'roleOptions' => User::getRoles(),
+            'officeOptions' => User::getOffices(),
             'statusOptions' => [
                 'active' => 'Active',
                 'inactive' => 'Inactive',
@@ -64,6 +68,7 @@ class UserManagementController extends Controller
 
         return Inertia::render('UserManagement/Create', [
             'roleOptions' => User::getRoles(),
+            'officeOptions' => User::getOffices(),
         ]);
     }
 
@@ -82,6 +87,7 @@ class UserManagementController extends Controller
             'email' => 'required|string|email|max:255|unique:users',
             'password' => 'required|string|min:8|confirmed',
             'role' => ['required', 'string', Rule::in(array_keys(User::getRoles()))],
+            'office' => ['required', 'string', Rule::in(array_keys(User::getOffices()))],
             'is_active' => 'boolean',
         ]);
 
@@ -90,8 +96,9 @@ class UserManagementController extends Controller
             'email' => $validated['email'],
             'password' => Hash::make($validated['password']),
             'role' => $validated['role'],
+            'office' => $validated['office'],
             'is_active' => $validated['is_active'] ?? true,
-            'last_login_at' => null, // New users haven't logged in yet
+            'last_login_at' => null,
         ]);
 
         return redirect()->route('user-management.index')
@@ -101,8 +108,10 @@ class UserManagementController extends Controller
     /**
      * Display the specified resource.
      */
-    public function show(User $user)
+    public function show(string $id)
     {
+        $user = User::findOrFail($id);
+        
         // Users can view their own profile, admins can view any
         if (!auth()->user()->isAdmin() && auth()->id() !== $user->id) {
             abort(403, 'Unauthorized action.');
@@ -116,8 +125,10 @@ class UserManagementController extends Controller
     /**
      * Show the form for editing the specified resource.
      */
-    public function edit(User $user)
+    public function edit(string $id)
     {
+        $user = User::findOrFail($id);
+        
         // Users can edit their own profile, admins can edit any
         if (!auth()->user()->isAdmin() && auth()->id() !== $user->id) {
             abort(403, 'Unauthorized action.');
@@ -126,14 +137,17 @@ class UserManagementController extends Controller
         return Inertia::render('UserManagement/Edit', [
             'user' => $user,
             'roleOptions' => User::getRoles(),
+            'officeOptions' => User::getOffices(),
         ]);
     }
 
     /**
      * Update the specified resource in storage.
      */
-    public function update(Request $request, User $user): RedirectResponse
+    public function update(Request $request, string $id): RedirectResponse
     {
+        $user = User::findOrFail($id);
+        
         // Users can update their own profile, admins can update any
         if (!auth()->user()->isAdmin() && auth()->id() !== $user->id) {
             abort(403, 'Unauthorized action.');
@@ -143,6 +157,7 @@ class UserManagementController extends Controller
             'name' => 'required|string|max:255',
             'email' => ['required', 'string', 'email', 'max:255', Rule::unique('users')->ignore($user->id)],
             'role' => ['required', 'string', Rule::in(array_keys(User::getRoles()))],
+            'office' => ['required', 'string', Rule::in(array_keys(User::getOffices()))],
             'is_active' => 'boolean',
             'password' => 'nullable|string|min:8|confirmed',
         ]);
@@ -151,6 +166,7 @@ class UserManagementController extends Controller
             'name' => $validated['name'],
             'email' => $validated['email'],
             'role' => $validated['role'],
+            'office' => $validated['office'],
             'is_active' => $validated['is_active'] ?? $user->is_active,
         ];
 
@@ -167,8 +183,10 @@ class UserManagementController extends Controller
     /**
      * Remove the specified resource from storage.
      */
-    public function destroy(User $user): RedirectResponse
+    public function destroy(string $id): RedirectResponse
     {
+        $user = User::findOrFail($id);
+        
         // Check if user is admin
         if (!auth()->user()->isAdmin()) {
             abort(403, 'Unauthorized action.');
@@ -189,8 +207,10 @@ class UserManagementController extends Controller
     /**
      * Toggle user active status
      */
-    public function toggleStatus(User $user): RedirectResponse
+    public function toggleStatus(string $id): RedirectResponse
     {
+        $user = User::findOrFail($id);
+        
         // Check if user is admin
         if (!auth()->user()->isAdmin()) {
             abort(403, 'Unauthorized action.');
@@ -210,5 +230,30 @@ class UserManagementController extends Controller
 
         return redirect()->back()
             ->with('success', "User {$status} successfully.");
+    }
+
+    /**
+     * Resend email verification
+     */
+    public function resendVerification(string $id): RedirectResponse
+    {
+        $user = User::findOrFail($id);
+        
+        // Check if user is admin
+        if (!auth()->user()->isAdmin()) {
+            abort(403, 'Unauthorized action.');
+        }
+
+        // Check if email is already verified
+        if ($user->hasVerifiedEmail()) {
+            return redirect()->back()
+                ->with('error', 'Email is already verified.');
+        }
+
+        // Send verification notification
+        $user->sendEmailVerificationNotification();
+
+        return redirect()->back()
+            ->with('success', 'Verification email sent successfully.');
     }
 }

@@ -3,7 +3,7 @@ import AppLayout from '@/layouts/AppLayout.vue';
 import { dashboard } from '@/routes';
 import { type BreadcrumbItem } from '@/types';
 import { Head, router, useForm, usePage } from '@inertiajs/vue3';
-import { ArrowLeft, Save, User, Mail, Shield, Building } from 'lucide-vue-next';
+import { ArrowLeft, Save, User, Mail, Shield, Building, Eye, Trash2 } from 'lucide-vue-next';
 import { ref, computed, watch, nextTick, onMounted } from 'vue';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -31,6 +31,17 @@ import {
 
 // Props
 const props = defineProps<{
+  user: {
+    id: string;
+    name: string;
+    email: string;
+    role: string;
+    office: string;
+    is_active: boolean;
+    email_verified_at: string | null;
+    created_at: string;
+    updated_at: string;
+  };
   roleOptions: Record<string, string>;
   officeOptions: Record<string, string>;
 }>();
@@ -108,18 +119,19 @@ const breadcrumbs: BreadcrumbItem[] = [
     href: '/user-management',
   },
   {
-    title: 'Create User',
-    href: '/user-management/create',
+    title: 'Edit User',
+    href: `/user-management/${props.user.id}/edit`,
   },
 ];
 
-// Form handling
+// Form handling - Use POST method with _method field
 const form = useForm({
-  name: '',
-  email: '',
-  role: '',
-  office: '',
-  is_active: true,
+  _method: 'PUT',
+  name: props.user.name,
+  email: props.user.email,
+  role: props.user.role,
+  office: props.user.office,
+  is_active: props.user.is_active,
   password: '',
   password_confirmation: '',
 });
@@ -127,10 +139,18 @@ const form = useForm({
 // Dialog states
 const saveDialogOpen = ref(false);
 const cancelDialogOpen = ref(false);
+const deleteDialogOpen = ref(false);
+const deleting = ref(false);
 
 // Check if form has unsaved changes
 const hasUnsavedChanges = computed(() => {
-  return !!form.name || !!form.email || !!form.role || !!form.office || !!form.password;
+  return form.name !== props.user.name ||
+         form.email !== props.user.email ||
+         form.role !== props.user.role ||
+         form.office !== props.user.office ||
+         form.is_active !== props.user.is_active ||
+         form.password !== '' ||
+         form.password_confirmation !== '';
 });
 
 // Get user summary for confirmation dialogs
@@ -138,15 +158,16 @@ const userSummary = computed(() => {
   return {
     name: form.name || 'Unnamed User',
     email: form.email || 'No email',
-    role: props.roleOptions[form.role] || form.role || 'Not selected',
-    office: props.officeOptions[form.office] || form.office || 'Not selected',
+    role: props.roleOptions[form.role] || form.role,
+    office: props.officeOptions[form.office] || form.office,
     status: form.is_active ? 'Active' : 'Inactive',
+    hasPassword: !!form.password
   };
 });
 
-// Handle form submission
+// Handle form submission - Use POST with _method=PUT
 const submit = () => {
-  form.post('/user-management', {
+  form.post(`/user-management/${props.user.id}`, {
     preserveScroll: true,
     onSuccess: () => {
       // Don't show toast here - let the server flash message handle it
@@ -188,16 +209,12 @@ const validateForm = (): boolean => {
     showToast('Please select an office.', 'error');
     return false;
   }
-  if (!form.password) {
-    showToast('Please enter a password.', 'error');
-    return false;
-  }
-  if (form.password.length < 8) {
-    showToast('Password must be at least 8 characters long.', 'error');
-    return false;
-  }
-  if (form.password !== form.password_confirmation) {
+  if (form.password && form.password !== form.password_confirmation) {
     showToast('Password confirmation does not match.', 'error');
+    return false;
+  }
+  if (form.password && form.password.length < 8) {
+    showToast('Password must be at least 8 characters long.', 'error');
     return false;
   }
   return true;
@@ -223,6 +240,53 @@ const cancel = () => {
   router.visit('/user-management');
 };
 
+// Delete user using Inertia
+const deleteUser = async () => {
+  deleting.value = true;
+  try {
+    router.delete(`/user-management/${props.user.id}`, {
+      preserveScroll: false,
+      onSuccess: () => {
+        // Don't show toast here - let the server flash message handle it
+      },
+      onError: (errors) => {
+        const errorMsg = errors.message || 'Failed to delete user';
+        showToast(errorMsg, 'error');
+        deleting.value = false;
+        deleteDialogOpen.value = false;
+      },
+    });
+  } catch (err) {
+    console.error('Failed to delete user:', err);
+    const errorMsg = err instanceof Error ? err.message : 'Failed to delete user';
+    showToast(errorMsg, 'error');
+    deleting.value = false;
+    deleteDialogOpen.value = false;
+  }
+};
+
+// Open delete confirmation dialog
+const openDeleteDialog = () => {
+  deleteDialogOpen.value = true;
+};
+
+// Format date for display
+const formatDate = (dateString: string | null) => {
+  if (!dateString) return 'Never';
+  return new Date(dateString).toLocaleDateString('en-US', {
+    year: 'numeric',
+    month: 'short',
+    day: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit'
+  });
+};
+
+// Check if current user is editing their own profile
+const isEditingSelf = computed(() => {
+  return props.user.id === (page.props.auth.user as any).id;
+});
+
 // Clear shown messages when component unmounts
 onMounted(() => {
   shownFlashMessages.value.clear();
@@ -230,7 +294,7 @@ onMounted(() => {
 </script>
 
 <template>
-  <Head title="Create New User" />
+  <Head title="Edit User" />
 
   <AppLayout :breadcrumbs="breadcrumbs">
     <div class="w-full p-4 sm:p-6">
@@ -238,8 +302,8 @@ onMounted(() => {
         <!-- Header -->
         <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6">
           <div class="flex-1 min-w-0">
-            <h1 class="text-2xl sm:text-3xl font-bold text-foreground truncate">Create New User</h1>
-            <p class="text-muted-foreground mt-1">Add a new user to the system</p>
+            <h1 class="text-2xl sm:text-3xl font-bold text-foreground truncate">Edit User</h1>
+            <p class="text-muted-foreground mt-1">Update user details and permissions</p>
           </div>
         </div>
 
@@ -295,35 +359,42 @@ onMounted(() => {
                     />
                   </div>
                   <p v-if="form.errors.email" class="text-sm text-destructive">{{ form.errors.email }}</p>
+                  <div v-if="user.email_verified_at" class="flex items-center space-x-1 text-sm text-green-600">
+                    <span>✓ Email verified</span>
+                    <span class="text-muted-foreground">• {{ formatDate(user.email_verified_at) }}</span>
+                  </div>
+                  <div v-else class="flex items-center space-x-1 text-sm text-amber-600">
+                    <span>⚠ Email not verified</span>
+                  </div>
                 </div>
 
                 <!-- Password -->
                 <div class="space-y-4">
-                  <Label class="text-sm font-medium">Password *</Label>
+                  <Label class="text-sm font-medium">Change Password</Label>
+                  <p class="text-sm text-muted-foreground">
+                    Leave blank to keep current password
+                  </p>
                   
                   <div class="space-y-2">
-                    <Label for="password" class="text-sm font-medium">Password</Label>
+                    <Label for="password" class="text-sm font-medium">New Password</Label>
                     <Input
                       id="password"
                       v-model="form.password"
                       type="password"
-                      placeholder="Enter password"
+                      placeholder="Enter new password"
                       :class="form.errors.password ? 'border-destructive' : ''"
                       class="w-full"
                     />
                     <p v-if="form.errors.password" class="text-sm text-destructive">{{ form.errors.password }}</p>
-                    <p class="text-xs text-muted-foreground">
-                      Password must be at least 8 characters long
-                    </p>
                   </div>
 
                   <div class="space-y-2">
-                    <Label for="password_confirmation" class="text-sm font-medium">Confirm Password</Label>
+                    <Label for="password_confirmation" class="text-sm font-medium">Confirm New Password</Label>
                     <Input
                       id="password_confirmation"
                       v-model="form.password_confirmation"
                       type="password"
-                      placeholder="Confirm password"
+                      placeholder="Confirm new password"
                       :class="form.errors.password_confirmation ? 'border-destructive' : ''"
                       class="w-full"
                     />
@@ -352,7 +423,7 @@ onMounted(() => {
                     <div class="flex-1">
                       <Select v-model="form.role" :class="form.errors.role ? 'border-destructive' : ''">
                         <SelectTrigger class="w-full">
-                          <SelectValue placeholder="Select a role" />
+                          <SelectValue />
                         </SelectTrigger>
                         <SelectContent>
                           <SelectItem
@@ -386,7 +457,7 @@ onMounted(() => {
                     <div class="flex-1">
                       <Select v-model="form.office" :class="form.errors.office ? 'border-destructive' : ''">
                         <SelectTrigger class="w-full">
-                          <SelectValue placeholder="Select an office" />
+                          <SelectValue />
                         </SelectTrigger>
                         <SelectContent>
                           <SelectItem
@@ -410,13 +481,46 @@ onMounted(() => {
                     <div class="space-y-0.5">
                       <Label class="text-sm font-medium">Active Account</Label>
                       <p class="text-xs text-muted-foreground">
-                        User can login and access system immediately
+                        {{ form.is_active ? 'User can login and access system' : 'User cannot login to system' }}
                       </p>
                     </div>
                     <Switch
                       v-model="form.is_active"
+                      :disabled="isEditingSelf"
                       aria-label="Toggle account status"
                     />
+                  </div>
+                  <p v-if="isEditingSelf" class="text-xs text-amber-600">
+                    You cannot deactivate your own account
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            <!-- User Information Card -->
+            <div class="bg-card rounded-lg border shadow-sm">
+              <div class="p-4 sm:p-6 border-b">
+                <h2 class="text-lg font-semibold">User Information</h2>
+              </div>
+              <div class="p-4 sm:p-6 space-y-4">
+                <div class="grid grid-cols-2 gap-4 text-sm">
+                  <div class="space-y-1">
+                    <span class="font-medium text-muted-foreground">User ID:</span>
+                    <p class="font-mono text-xs">{{ user.id }}</p>
+                  </div>
+                  <div class="space-y-1">
+                    <span class="font-medium text-muted-foreground">Created:</span>
+                    <p>{{ formatDate(user.created_at) }}</p>
+                  </div>
+                  <div class="space-y-1">
+                    <span class="font-medium text-muted-foreground">Last Updated:</span>
+                    <p>{{ formatDate(user.updated_at) }}</p>
+                  </div>
+                  <div class="space-y-1">
+                    <span class="font-medium text-muted-foreground">Email Verified:</span>
+                    <p :class="user.email_verified_at ? 'text-green-600' : 'text-amber-600'">
+                      {{ user.email_verified_at ? 'Yes' : 'No' }}
+                    </p>
                   </div>
                 </div>
               </div>
@@ -434,8 +538,8 @@ onMounted(() => {
                     size="lg"
                   >
                     <Save class="h-4 w-4 mr-2" />
-                    <span v-if="form.processing">Creating...</span>
-                    <span v-else>Create User</span>
+                    <span v-if="form.processing">Saving...</span>
+                    <span v-else>Save Changes</span>
                   </Button>
                   
                   <Button
@@ -448,6 +552,21 @@ onMounted(() => {
                     <ArrowLeft class="h-4 w-4 mr-2" />
                     Cancel
                   </Button>
+
+                  <Button
+                    type="button"
+                    variant="destructive"
+                    @click="openDeleteDialog"
+                    :disabled="form.processing || isEditingSelf"
+                    class="w-full"
+                  >
+                    <Trash2 class="h-4 w-4 mr-2" />
+                    Delete User
+                  </Button>
+
+                  <div v-if="isEditingSelf" class="text-xs text-muted-foreground text-center">
+                    You cannot delete your own account
+                  </div>
                 </div>
               </div>
             </div>
@@ -456,13 +575,13 @@ onMounted(() => {
       </div>
     </div>
 
-    <!-- Create User Confirmation Dialog -->
+    <!-- Save Changes Confirmation Dialog -->
     <AlertDialog v-model:open="saveDialogOpen">
       <AlertDialogContent>
         <AlertDialogHeader>
-          <AlertDialogTitle>Create User?</AlertDialogTitle>
+          <AlertDialogTitle>Save Changes?</AlertDialogTitle>
           <AlertDialogDescription>
-            Are you sure you want to create this new user account?
+            Are you sure you want to save the changes to this user account?
             <div class="mt-4 p-3 bg-muted rounded-lg space-y-2">
               <div class="flex justify-between">
                 <span class="font-medium">Name:</span>
@@ -484,6 +603,10 @@ onMounted(() => {
                 <span class="font-medium">Status:</span>
                 <span>{{ userSummary.status }}</span>
               </div>
+              <div class="flex justify-between">
+                <span class="font-medium">Password:</span>
+                <span>{{ userSummary.hasPassword ? 'Changed' : 'Unchanged' }}</span>
+              </div>
             </div>
           </AlertDialogDescription>
         </AlertDialogHeader>
@@ -492,7 +615,7 @@ onMounted(() => {
             Continue Editing
           </AlertDialogCancel>
           <AlertDialogAction @click="confirmSave">
-            Create User
+            Save Changes
           </AlertDialogAction>
         </AlertDialogFooter>
       </AlertDialogContent>
@@ -502,13 +625,13 @@ onMounted(() => {
     <AlertDialog v-model:open="cancelDialogOpen">
       <AlertDialogContent>
         <AlertDialogHeader>
-          <AlertDialogTitle>Cancel Creation?</AlertDialogTitle>
+          <AlertDialogTitle>Cancel Changes?</AlertDialogTitle>
           <AlertDialogDescription>
             <span v-if="hasUnsavedChanges">
               You have unsaved changes. If you cancel now, all your changes will be lost.
             </span>
             <span v-else>
-              This will cancel the user creation and return you to the user management list.
+              This will cancel the editing and return you to the user management list.
             </span>
           </AlertDialogDescription>
         </AlertDialogHeader>
@@ -517,7 +640,36 @@ onMounted(() => {
             Continue Editing
           </AlertDialogCancel>
           <AlertDialogAction @click="confirmCancel">
-            Cancel Creation
+            Cancel Changes
+          </AlertDialogAction>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
+
+    <!-- Delete Confirmation Dialog -->
+    <AlertDialog v-model:open="deleteDialogOpen">
+      <AlertDialogContent>
+        <AlertDialogHeader>
+          <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
+          <AlertDialogDescription>
+            This action cannot be undone. This will permanently delete the user
+            "{{ user.name }}" and remove their account from our system.
+          </AlertDialogDescription>
+        </AlertDialogHeader>
+        <AlertDialogFooter>
+          <AlertDialogCancel :disabled="deleting" @click="deleteDialogOpen = false">
+            Cancel
+          </AlertDialogCancel>
+          <AlertDialogAction 
+            @click="deleteUser"
+            class="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            :disabled="deleting"
+          >
+            <div v-if="deleting" class="flex items-center space-x-2">
+              <div class="animate-spin rounded-full h-3 w-3 border-b-2 border-white"></div>
+              <span>Deleting...</span>
+            </div>
+            <span v-else>Delete User</span>
           </AlertDialogAction>
         </AlertDialogFooter>
       </AlertDialogContent>

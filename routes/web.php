@@ -54,6 +54,7 @@ Route::middleware(['auth'])->group(function () {
     // User Management routes
     Route::resource('user-management', UserManagementController::class);
     Route::post('/user-management/{user}/toggle-status', [UserManagementController::class, 'toggleStatus'])->name('user-management.toggle-status');
+    Route::post('/user-management/{user}/resend-verification', [UserManagementController::class, 'resendVerification'])->name('user-management.resend-verification');
 });
 
 // Public show routes

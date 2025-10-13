@@ -2,20 +2,19 @@
 import AppLayout from '@/layouts/AppLayout.vue';
 import { dashboard } from '@/routes';
 import { type BreadcrumbItem } from '@/types';
-import { Eye, Edit, Trash2, User, Mail, Calendar, CheckCircle, XCircle, Search, ChevronDown, MoreVertical, Plus, Clock } from "lucide-vue-next"
-import { ref, watch, nextTick } from "vue"
+import { type ColumnDef } from "@tanstack/vue-table"
+import { Eye, Edit, Trash2, UserX, UserCheck, Mail, Building, Shield, Calendar, Filter, Search, X, ChevronDown, Plus, CheckCircle, XCircle } from "lucide-vue-next"
+import { h, ref, watch, nextTick, onMounted } from "vue"
 import { router, Head, Link, usePage } from '@inertiajs/vue3'
 import { toast } from 'vue-sonner'
 
 import { Button } from "@/components/ui/button"
-import { Checkbox } from "@/components/ui/checkbox"
 import { Badge } from "@/components/ui/badge"
 import { Input } from "@/components/ui/input"
 import {
   DropdownMenu,
   DropdownMenuCheckboxItem,
   DropdownMenuContent,
-  DropdownMenuItem,
   DropdownMenuLabel,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
@@ -26,6 +25,8 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip"
+import DataTable from '@/components/DataTable.vue'
+import DataTablePagination from '@/components/DataTablePagination.vue'
 import {
   AlertDialog,
   AlertDialogAction,
@@ -42,9 +43,10 @@ export interface User {
   name: string
   email: string
   role: string
+  office: string
   is_active: boolean
-  email_verified_at: string | null
   last_login_at: string | null
+  email_verified_at: string | null
   created_at: string
   updated_at: string
 }
@@ -59,7 +61,7 @@ interface FlashMessages {
 
 const props = defineProps<{
   users: {
-    data: User[]
+    data: any[]
     current_page: number
     last_page: number
     per_page: number
@@ -68,28 +70,65 @@ const props = defineProps<{
   filters?: {
     search?: string
     role?: string
+    office?: string
     status?: string
   }
   roleOptions: Record<string, string>
+  officeOptions: Record<string, string>
   statusOptions: Record<string, string>
 }>();
 
 const page = usePage();
 
+// Track shown flash messages to prevent duplicates
+const shownFlashMessages = ref<Set<string>>(new Set());
+
+// Function to show toast and track it
+const showToast = (message: string, type: 'success' | 'error' | 'warning' | 'info') => {
+  const messageKey = `${type}:${message}`;
+  
+  if (!shownFlashMessages.value.has(messageKey)) {
+    shownFlashMessages.value.add(messageKey);
+    
+    nextTick(() => {
+      switch (type) {
+        case 'success':
+          toast.success(message);
+          break;
+        case 'error':
+          toast.error(message);
+          break;
+        case 'warning':
+          toast.warning(message);
+          break;
+        case 'info':
+          toast.info(message);
+          break;
+      }
+      
+      // Remove from tracking after a delay to allow same message to show again later
+      setTimeout(() => {
+        shownFlashMessages.value.delete(messageKey);
+      }, 1000);
+    });
+  }
+};
+
 // Watch for flash messages and show toasts with proper typing
 watch(() => page.props.flash as FlashMessages | undefined, (newFlash, oldFlash) => {
   const currentFlash = newFlash as FlashMessages | undefined;
-  const previousFlash = oldFlash as FlashMessages | undefined;
   
-  if (currentFlash?.success && currentFlash.success !== previousFlash?.success) {
-    nextTick(() => {
-      toast.success(currentFlash.success!);
-    });
+  if (currentFlash?.success) {
+    showToast(currentFlash.success, 'success');
   }
-  if (currentFlash?.error && currentFlash.error !== previousFlash?.error) {
-    nextTick(() => {
-      toast.error(currentFlash.error!);
-    });
+  if (currentFlash?.error) {
+    showToast(currentFlash.error, 'error');
+  }
+  if (currentFlash?.warning) {
+    showToast(currentFlash.warning, 'warning');
+  }
+  if (currentFlash?.info) {
+    showToast(currentFlash.info, 'info');
   }
 }, { deep: true, immediate: true });
 
@@ -113,17 +152,13 @@ const pageSize = ref(props.users.per_page || 10)
 
 const searchQuery = ref(props.filters?.search || '')
 const roleFilter = ref(props.filters?.role || '')
+const officeFilter = ref(props.filters?.office || '')
 const statusFilter = ref(props.filters?.status || '')
 
 // Delete dialog state
 const deleteDialogOpen = ref(false)
 const userToDelete = ref<User | null>(null)
 const deleting = ref(false)
-
-// Status toggle dialog state
-const statusDialogOpen = ref(false)
-const userToToggleStatus = ref<User | null>(null)
-const togglingStatus = ref(false)
 
 // Search timeout reference
 let searchTimeout: number | null = null
@@ -136,6 +171,7 @@ const reloadPage = () => {
 
   if (searchQuery.value) params.search = searchQuery.value
   if (roleFilter.value) params.role = roleFilter.value
+  if (officeFilter.value) params.office = officeFilter.value
   if (statusFilter.value) params.status = statusFilter.value
 
   router.get('/user-management', params, {
@@ -171,6 +207,12 @@ const handleRoleFilter = (value: string) => {
   reloadPage()
 }
 
+const handleOfficeFilter = (value: string) => {
+  officeFilter.value = value
+  currentPage.value = 1
+  reloadPage()
+}
+
 const handleStatusFilter = (value: string) => {
   statusFilter.value = value
   currentPage.value = 1
@@ -180,6 +222,7 @@ const handleStatusFilter = (value: string) => {
 const clearFilters = () => {
   searchQuery.value = ''
   roleFilter.value = ''
+  officeFilter.value = ''
   statusFilter.value = ''
   currentPage.value = 1
   reloadPage()
@@ -211,6 +254,7 @@ const deleteUser = () => {
     onSuccess: () => {
       deleteDialogOpen.value = false
       userToDelete.value = null
+      // Don't show toast here - let the server flash message handle it
     },
     onError: (errors) => {
       console.error('Delete error:', errors)
@@ -224,7 +268,7 @@ const deleteUser = () => {
         errorMsg = (errors as any).error
       }
       
-      toast.error(errorMsg)
+      showToast(errorMsg, 'error')
     },
     onFinish: () => {
       deleting.value = false
@@ -238,17 +282,19 @@ const openDeleteDialog = (user: User) => {
 }
 
 // Status toggle handler
-const toggleUserStatus = () => {
-  if (!userToToggleStatus.value) return
+const handleStatusToggle = (user: User) => {
+  // Prevent users from deactivating themselves
+  if (user.id === (page.props.auth.user as any).id) {
+    showToast('You cannot deactivate your own account.', 'error')
+    return
+  }
 
-  togglingStatus.value = true
-  
-  router.post(`/user-management/${userToToggleStatus.value.id}/toggle-status`, {}, {
+  router.post(`/user-management/${user.id}/toggle-status`, {}, {
     preserveScroll: true,
     preserveState: false,
     onSuccess: () => {
-      statusDialogOpen.value = false
-      userToToggleStatus.value = null
+      // Success toast will be shown from server flash message
+      reloadPage(); // Refresh the page to show updated status
     },
     onError: (errors) => {
       console.error('Status toggle error:', errors)
@@ -260,43 +306,23 @@ const toggleUserStatus = () => {
       } else if (errors && typeof errors === 'object' && 'error' in errors) {
         errorMsg = (errors as any).error
       }
-      toast.error(errorMsg)
-    },
-    onFinish: () => {
-      togglingStatus.value = false
+      showToast(errorMsg, 'error')
     }
   })
 }
 
-const openStatusDialog = (user: User) => {
-  userToToggleStatus.value = user
-  statusDialogOpen.value = true
+// Utility functions
+const formatDate = (dateString: string | null) => {
+  if (!dateString) return 'Never'
+  return new Date(dateString).toLocaleDateString('en-US', {
+    year: 'numeric',
+    month: 'short',
+    day: 'numeric'
+  })
 }
 
-// Utility functions for last login display
 const formatLastLogin = (dateString: string | null) => {
   if (!dateString) return 'Never logged in'
-  
-  const date = new Date(dateString);
-  const now = new Date();
-  const diffTime = Math.abs(now.getTime() - date.getTime());
-  const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
-  const diffHours = Math.floor(diffTime / (1000 * 60 * 60));
-  const diffMinutes = Math.floor(diffTime / (1000 * 60));
-
-  if (diffDays > 0) {
-    return `${diffDays} day${diffDays > 1 ? 's' : ''} ago`;
-  } else if (diffHours > 0) {
-    return `${diffHours} hour${diffHours > 1 ? 's' : ''} ago`;
-  } else if (diffMinutes > 0) {
-    return `${diffMinutes} minute${diffMinutes > 1 ? 's' : ''} ago`;
-  } else {
-    return 'Just now';
-  }
-}
-
-const getDetailedLastLogin = (dateString: string | null) => {
-  if (!dateString) return 'User has never logged in'
   return new Date(dateString).toLocaleDateString('en-US', {
     year: 'numeric',
     month: 'short',
@@ -306,27 +332,8 @@ const getDetailedLastLogin = (dateString: string | null) => {
   })
 }
 
-const formatDate = (dateString: string | null) => {
-  if (!dateString) return 'N/A'
-  return new Date(dateString).toLocaleDateString('en-US', {
-    year: 'numeric',
-    month: 'short',
-    day: 'numeric'
-  })
-}
-
-const getRoleBadgeVariant = (role: string) => {
-  switch (role) {
-    case 'admin': return 'default'
-    case 'PIO Officer': return 'secondary'
-    case 'PIO Staff': return 'outline'
-    case 'user': return 'secondary'
-    default: return 'outline'
-  }
-}
-
-const getStatusBadgeVariant = (isActive: boolean) => {
-  return isActive ? 'default' : 'destructive'
+const isEmailVerified = (emailVerifiedAt: string | null) => {
+  return !!emailVerifiedAt
 }
 
 // Event handler for input events with proper typing
@@ -343,6 +350,11 @@ const getRoleDisplayText = () => {
   return props.roleOptions[roleFilter.value] || 'Select Role'
 }
 
+const getOfficeDisplayText = () => {
+  if (!officeFilter.value) return 'All Offices'
+  return props.officeOptions[officeFilter.value] || 'Select Office'
+}
+
 const getStatusDisplayText = () => {
   if (!statusFilter.value) return 'All Status'
   return props.statusOptions[statusFilter.value] || 'Select Status'
@@ -352,9 +364,211 @@ const isRoleSelected = (value: string) => {
   return roleFilter.value === value
 }
 
+const isOfficeSelected = (value: string) => {
+  return officeFilter.value === value
+}
+
 const isStatusSelected = (value: string) => {
   return statusFilter.value === value
 }
+
+// Get badge variant based on role
+const getRoleBadgeVariant = (role: string) => {
+  switch (role) {
+    case 'admin': return 'destructive'
+    case 'PIO Officer': return 'default'
+    case 'PIO Staff': return 'secondary'
+    default: return 'outline'
+  }
+}
+
+// Get badge variant based on status
+const getStatusBadgeVariant = (isActive: boolean) => {
+  return isActive ? 'default' : 'secondary'
+}
+
+// Get badge variant for email verification
+const getVerificationBadgeVariant = (isVerified: boolean) => {
+  return isVerified ? 'default' : 'outline'
+}
+
+// Columns definition with proper alignment
+const columns: ColumnDef<User>[] = [
+  {
+    accessorKey: "name",
+    header: () => h("div", { class: "text-left font-semibold" }, "User Details"),
+    cell: ({ row }) => {
+      const user = row.original;
+      return h("div", { class: "flex items-start space-x-3" }, [
+        h("div", { class: "flex-shrink-0 w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center" }, [
+          h(Shield, { class: "h-5 w-5 text-primary" })
+        ]),
+        h("div", { class: "min-w-0 flex-1" }, [
+          h("div", { class: "flex items-center space-x-2" }, [
+            h("span", { class: "font-medium text-sm text-foreground" }, user.name || 'No name'),
+          ]),
+          h("div", { class: "flex items-center space-x-1 text-xs text-muted-foreground mt-1" }, [
+            h(Mail, { class: "h-3 w-3 flex-shrink-0" }),
+            h("span", { class: "truncate" }, user.email)
+          ])
+        ])
+      ])
+    },
+  },
+  {
+    accessorKey: "role",
+    header: () => h("div", { class: "text-center font-semibold" }, "Role"),
+    cell: ({ row }) => h("div", { class: "flex justify-center" }, [
+      h(Badge, { 
+        variant: getRoleBadgeVariant(row.original.role),
+        class: "text-xs"
+      }, props.roleOptions[row.original.role] || row.original.role)
+    ]),
+  },
+  {
+    accessorKey: "office",
+    header: () => h("div", { class: "text-left font-semibold" }, "Office"),
+    cell: ({ row }) => h("div", { class: "flex items-center space-x-1" }, [
+      h(Building, { class: "h-3 w-3 text-muted-foreground flex-shrink-0" }),
+      h("span", { class: "text-sm truncate" }, row.original.office || 'Not assigned')
+    ]),
+  },
+  {
+    accessorKey: "is_active",
+    header: () => h("div", { class: "text-center font-semibold" }, "Status"),
+    cell: ({ row }) => {
+      const user = row.original
+      return h("div", { class: "flex justify-center" }, [
+        h(Badge, { 
+          variant: getStatusBadgeVariant(user.is_active),
+          class: "text-xs"
+        }, user.is_active ? "Active" : "Inactive")
+      ])
+    },
+  },
+  {
+    accessorKey: "email_verified_at",
+    header: () => h("div", { class: "text-center font-semibold" }, "Email Verified"),
+    cell: ({ row }) => {
+      const user = row.original
+      const isVerified = isEmailVerified(user.email_verified_at)
+      return h("div", { class: "flex items-center justify-center space-x-2" }, [
+        h(isVerified ? CheckCircle : XCircle, { 
+          class: `h-4 w-4 ${isVerified ? 'text-green-600' : 'text-muted-foreground'}`
+        }),
+        h(Badge, { 
+          variant: getVerificationBadgeVariant(isVerified),
+          class: "text-xs"
+        }, isVerified ? "Verified" : "Unverified")
+      ])
+    },
+  },
+  {
+    accessorKey: "last_login_at",
+    header: () => h("div", { class: "text-center font-semibold" }, "Last Login"),
+    cell: ({ row }) => h("div", { class: "flex items-center justify-center space-x-1" }, [
+      h(Calendar, { class: "h-3 w-3 text-muted-foreground flex-shrink-0" }),
+      h("span", { class: "text-sm" }, formatDate(row.original.last_login_at))
+    ]),
+  },
+  {
+    accessorKey: "created_at",
+    header: () => h("div", { class: "text-center font-semibold" }, "Created"),
+    cell: ({ row }) => h("div", { class: "text-center" }, [
+      h("span", { class: "text-sm text-muted-foreground" }, formatDate(row.original.created_at))
+    ]),
+  },
+  {
+    id: "actions",
+    header: () => h("div", { class: "text-center font-semibold" }, "Actions"),
+    cell: ({ row }) => {
+      const user = row.original
+      const isCurrentUser = user.id === (page.props.auth.user as any).id
+
+      const handleView = () => {
+        router.get(`/user-management/${user.id}`)
+      }
+
+      const handleEdit = () => {
+        router.get(`/user-management/${user.id}/edit`)
+      }
+
+      const getStatusButtonClass = (isActive: boolean) => {
+        return isActive 
+          ? 'h-8 w-8 p-0 text-green-600 hover:text-green-700' 
+          : 'h-8 w-8 p-0 text-muted-foreground hover:text-foreground'
+      }
+
+      return h(TooltipProvider, {}, [
+        h("div", { class: "flex space-x-1 justify-center" }, [
+          h(Tooltip, {}, [
+            h(TooltipTrigger, { asChild: true }, [
+              h(Button, {
+                variant: "ghost",
+                size: "sm",
+                onClick: handleView,
+                class: "h-8 w-8 p-0 hover:bg-accent"
+              }, [
+                h(Eye, { class: "h-4 w-4" }),
+              ])
+            ]),
+            h(TooltipContent, {}, "View User")
+          ]),
+          h(Tooltip, {}, [
+            h(TooltipTrigger, { asChild: true }, [
+              h(Button, {
+                variant: "ghost",
+                size: "sm",
+                onClick: handleEdit,
+                class: "h-8 w-8 p-0 hover:bg-accent"
+              }, [
+                h(Edit, { class: "h-4 w-4" }),
+              ])
+            ]),
+            h(TooltipContent, {}, "Edit User")
+          ]),
+          h(Tooltip, {}, [
+            h(TooltipTrigger, { asChild: true }, [
+              h(Button, {
+                variant: "ghost",
+                size: "sm",
+                onClick: () => handleStatusToggle(user),
+                class: `h-8 w-8 p-0 hover:bg-accent ${getStatusButtonClass(user.is_active)}`,
+                disabled: isCurrentUser
+              }, [
+                h(user.is_active ? UserX : UserCheck, { class: "h-4 w-4" }),
+              ])
+            ]),
+            h(TooltipContent, {}, 
+              isCurrentUser 
+                ? "Cannot modify your own status" 
+                : user.is_active ? "Deactivate User" : "Activate User"
+            )
+          ]),
+          h(Tooltip, {}, [
+            h(TooltipTrigger, { asChild: true }, [
+              h(Button, {
+                variant: "ghost",
+                size: "sm",
+                onClick: () => openDeleteDialog(user),
+                class: "h-8 w-8 p-0 text-destructive hover:text-destructive/90 hover:bg-accent",
+                disabled: isCurrentUser
+              }, [
+                h(Trash2, { class: "h-4 w-4" }),
+              ])
+            ]),
+            h(TooltipContent, {}, 
+              isCurrentUser 
+                ? "Cannot delete your own account" 
+                : "Delete User"
+            )
+          ]),
+        ])
+      ])
+    },
+    enableHiding: false,
+  },
+]
 
 // Watchers to update reactive data when props change
 watch(() => props.users, (newUsers) => {
@@ -367,8 +581,14 @@ watch(() => props.users, (newUsers) => {
 watch(() => props.filters, (newFilters) => {
   searchQuery.value = newFilters?.search || ''
   roleFilter.value = newFilters?.role || ''
+  officeFilter.value = newFilters?.office || ''
   statusFilter.value = newFilters?.status || ''
 }, { deep: true })
+
+// Clear shown messages when component unmounts
+onMounted(() => {
+  shownFlashMessages.value.clear()
+})
 </script>
 
 <template>
@@ -393,15 +613,15 @@ watch(() => props.filters, (newFilters) => {
 
       <!-- Filters Section -->
       <div class="bg-card rounded-lg border p-4 shadow-sm">
-        <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
+        <div class="grid grid-cols-1 md:grid-cols-5 gap-4">
           <!-- Search -->
-          <div class="md:col-span-2">
+          <div>
             <label class="block text-sm font-medium text-foreground mb-2">Search</label>
             <div class="relative">
               <Input
                 v-model="searchQuery"
                 type="text"
-                placeholder="Search users by name or email..."
+                placeholder="Search users, emails..."
                 class="w-full pr-10"
                 @input="handleSearchInput"
                 :disabled="loading"
@@ -448,6 +668,42 @@ watch(() => props.filters, (newFilters) => {
             </DropdownMenu>
           </div>
 
+          <!-- Office Filter Dropdown -->
+          <div>
+            <label class="block text-sm font-medium text-foreground mb-2">Office</label>
+            <DropdownMenu>
+              <DropdownMenuTrigger as-child>
+                <Button variant="outline" class="w-full justify-between" :disabled="loading">
+                  <span class="truncate">
+                    {{ getOfficeDisplayText() }}
+                  </span>
+                  <ChevronDown class="h-4 w-4 opacity-50 ml-2 flex-shrink-0" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent class="w-56">
+                <DropdownMenuLabel>Filter by Office</DropdownMenuLabel>
+                <DropdownMenuSeparator />
+                <DropdownMenuCheckboxItem
+                  :model-value="!officeFilter"
+                  @update:model-value="() => handleOfficeFilter('')"
+                  :disabled="loading"
+                >
+                  All Offices
+                </DropdownMenuCheckboxItem>
+                <DropdownMenuSeparator />
+                <DropdownMenuCheckboxItem
+                  v-for="(label, value) in officeOptions"
+                  :key="value"
+                  :model-value="isOfficeSelected(value)"
+                  @update:model-value="() => handleOfficeFilter(value)"
+                  :disabled="loading"
+                >
+                  {{ label }}
+                </DropdownMenuCheckboxItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </div>
+
           <!-- Status Filter Dropdown -->
           <div>
             <label class="block text-sm font-medium text-foreground mb-2">Status</label>
@@ -483,10 +739,22 @@ watch(() => props.filters, (newFilters) => {
               </DropdownMenuContent>
             </DropdownMenu>
           </div>
+
+          <!-- Clear Filters -->
+          <div class="flex items-end">
+            <Button
+              @click="clearFilters"
+              variant="outline"
+              class="w-full"
+              :disabled="loading"
+            >
+              Clear Filters
+            </Button>
+          </div>
         </div>
 
         <!-- Active Filters Display -->
-        <div v-if="roleFilter || statusFilter" class="mt-4 flex flex-wrap gap-2">
+        <div v-if="roleFilter || officeFilter || statusFilter" class="mt-4 flex flex-wrap gap-2">
           <div 
             v-if="roleFilter" 
             class="inline-flex items-center gap-1 bg-primary/10 text-primary px-2 py-1 rounded-md text-sm"
@@ -494,6 +762,19 @@ watch(() => props.filters, (newFilters) => {
             Role: {{ roleOptions[roleFilter] }}
             <button 
               @click="handleRoleFilter('')"
+              class="hover:bg-primary/20 rounded-full p-0.5"
+              :disabled="loading"
+            >
+              ×
+            </button>
+          </div>
+          <div 
+            v-if="officeFilter" 
+            class="inline-flex items-center gap-1 bg-primary/10 text-primary px-2 py-1 rounded-md text-sm"
+          >
+            Office: {{ officeOptions[officeFilter] }}
+            <button 
+              @click="handleOfficeFilter('')"
               class="hover:bg-primary/20 rounded-full p-0.5"
               :disabled="loading"
             >
@@ -520,187 +801,28 @@ watch(() => props.filters, (newFilters) => {
           <div class="text-sm text-muted-foreground">
             Showing {{ total }} user(s)
           </div>
-          <Button
-            @click="clearFilters"
-            variant="outline"
-            size="sm"
-            :disabled="loading"
-          >
-            Clear All Filters
-          </Button>
         </div>
       </div>
 
-      <!-- Table -->
-      <div class="bg-card rounded-lg border shadow-sm">
-        <div class="relative w-full overflow-auto">
-          <table class="w-full caption-bottom text-sm">
-            <thead class="[&_tr]:border-b">
-              <tr class="border-b transition-colors hover:bg-muted/50 data-[state=selected]:bg-muted">
-                <th class="h-12 px-4 text-left align-middle font-medium text-muted-foreground w-12">
-                  <Checkbox />
-                </th>
-                <th class="h-12 px-4 text-left align-middle font-medium text-muted-foreground">User Details</th>
-                <th class="h-12 px-4 text-left align-middle font-medium text-muted-foreground">Role</th>
-                <th class="h-12 px-4 text-left align-middle font-medium text-muted-foreground">Status</th>
-                <th class="h-12 px-4 text-left align-middle font-medium text-muted-foreground">Last Login</th>
-                <th class="h-12 px-4 text-left align-middle font-medium text-muted-foreground">Created</th>
-                <th class="h-12 px-4 text-left align-middle font-medium text-muted-foreground">Actions</th>
-              </tr>
-            </thead>
-            <tbody class="[&_tr:last-child]:border-0">
-              <tr v-if="loading" class="border-b transition-colors hover:bg-muted/50 data-[state=selected]:bg-muted">
-                <td colspan="7" class="p-4 align-middle text-center">
-                  <div class="flex items-center justify-center space-x-2">
-                    <div class="animate-spin rounded-full h-4 w-4 border-b-2 border-primary"></div>
-                    <span>Loading users...</span>
-                  </div>
-                </td>
-              </tr>
-              <tr 
-                v-else-if="data.length === 0" 
-                class="border-b transition-colors hover:bg-muted/50 data-[state=selected]:bg-muted"
-              >
-                <td colspan="7" class="p-4 align-middle text-center text-muted-foreground">
-                  No users found.
-                </td>
-              </tr>
-              <tr
-                v-else
-                v-for="user in data"
-                :key="user.id"
-                class="border-b transition-colors hover:bg-muted/50 data-[state=selected]:bg-muted"
-              >
-                <td class="p-4 align-middle">
-                  <Checkbox />
-                </td>
-                <td class="p-4 align-middle">
-                  <div class="flex items-start space-x-3">
-                    <div class="flex-shrink-0 w-10 h-10 rounded-full bg-muted flex items-center justify-center">
-                      <User class="h-4 w-4 text-muted-foreground" />
-                    </div>
-                    <div class="min-w-0 flex-1">
-                      <div class="flex items-center space-x-2">
-                        <span class="font-medium text-sm text-foreground truncate">{{ user.name }}</span>
-                        <CheckCircle v-if="user.email_verified_at" class="h-3 w-3 text-green-500 flex-shrink-0" />
-                      </div>
-                      <div class="flex items-center space-x-1 text-xs text-muted-foreground mt-1 truncate">
-                        <Mail class="h-3 w-3 flex-shrink-0" />
-                        <span class="truncate">{{ user.email }}</span>
-                      </div>
-                    </div>
-                  </div>
-                </td>
-                <td class="p-4 align-middle">
-                  <Badge :variant="getRoleBadgeVariant(user.role)" class="text-xs">
-                    {{ roleOptions[user.role] || user.role }}
-                  </Badge>
-                </td>
-                <td class="p-4 align-middle">
-                  <div class="flex flex-col space-y-1">
-                    <Badge :variant="getStatusBadgeVariant(user.is_active)" class="text-xs">
-                      {{ user.is_active ? 'Active' : 'Inactive' }}
-                    </Badge>
-                    <Badge v-if="!user.email_verified_at" variant="outline" class="text-xs">
-                      Unverified
-                    </Badge>
-                  </div>
-                </td>
-                <td class="p-4 align-middle">
-                  <TooltipProvider>
-                    <Tooltip>
-                      <TooltipTrigger as-child>
-                        <div class="flex items-center space-x-1 cursor-help">
-                          <Clock class="h-3 w-3 text-muted-foreground" />
-                          <span class="text-sm" :class="{ 'text-muted-foreground italic': !user.last_login_at }">
-                            {{ formatLastLogin(user.last_login_at) }}
-                          </span>
-                        </div>
-                      </TooltipTrigger>
-                      <TooltipContent>
-                        <p>{{ getDetailedLastLogin(user.last_login_at) }}</p>
-                      </TooltipContent>
-                    </Tooltip>
-                  </TooltipProvider>
-                </td>
-                <td class="p-4 align-middle">
-                  <div class="flex items-center space-x-1">
-                    <Calendar class="h-3 w-3 text-muted-foreground" />
-                    <span class="text-sm">{{ formatDate(user.created_at) }}</span>
-                  </div>
-                </td>
-                <td class="p-4 align-middle">
-                  <div class="flex space-x-1 justify-center">
-                    <TooltipProvider>
-                      <Tooltip>
-                        <TooltipTrigger as-child>
-                          <Button variant="ghost" size="sm" @click="router.get(`/user-management/${user.id}`)" class="h-8 w-8 p-0 hover:bg-accent">
-                            <Eye class="h-4 w-4" />
-                          </Button>
-                        </TooltipTrigger>
-                        <TooltipContent>View User</TooltipContent>
-                      </Tooltip>
-                      
-                      <Tooltip>
-                        <TooltipTrigger as-child>
-                          <Button variant="ghost" size="sm" @click="router.get(`/user-management/${user.id}/edit`)" class="h-8 w-8 p-0 hover:bg-accent">
-                            <Edit class="h-4 w-4" />
-                          </Button>
-                        </TooltipTrigger>
-                        <TooltipContent>Edit User</TooltipContent>
-                      </Tooltip>
+      <!-- Table using reusable component -->
+      <DataTable
+        :data="data"
+        :columns="columns"
+        :loading="loading"
+        :search-query="searchQuery"
+        :enable-row-selection="false"
+        :enable-column-visibility="false"
+      />
 
-                      <DropdownMenu>
-                        <DropdownMenuTrigger as-child>
-                          <Button variant="ghost" size="sm" class="h-8 w-8 p-0 hover:bg-accent">
-                            <MoreVertical class="h-4 w-4" />
-                          </Button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end">
-                          <DropdownMenuItem @click="openStatusDialog(user)" :class="user.is_active ? 'text-destructive' : 'text-green-600'">
-                            <component :is="user.is_active ? XCircle : CheckCircle" class="h-4 w-4 mr-2" />
-                            {{ user.is_active ? 'Deactivate User' : 'Activate User' }}
-                          </DropdownMenuItem>
-                          <DropdownMenuSeparator />
-                          <DropdownMenuItem @click="openDeleteDialog(user)" class="text-destructive">
-                            <Trash2 class="h-4 w-4 mr-2" />
-                            Delete User
-                          </DropdownMenuItem>
-                        </DropdownMenuContent>
-                      </DropdownMenu>
-                    </TooltipProvider>
-                  </div>
-                </td>
-              </tr>
-            </tbody>
-          </table>
-        </div>
-      </div>
-
-      <!-- Pagination -->
-      <div class="flex items-center justify-between px-2">
-        <div class="text-sm text-muted-foreground">
-          Page {{ currentPage }} of {{ Math.ceil(total / pageSize) }}
-        </div>
-        <div class="flex items-center space-x-2">
-          <Button
-            variant="outline"
-            size="sm"
-            @click="handlePreviousPage"
-            :disabled="currentPage <= 1 || loading"
-          >
-            Previous
-          </Button>
-          <Button
-            variant="outline"
-            size="sm"
-            @click="handleNextPage"
-            :disabled="currentPage >= Math.ceil(total / pageSize) || loading"
-          >
-            Next
-          </Button>
-        </div>
-      </div>
+      <!-- Pagination using reusable component -->
+      <DataTablePagination
+        :current-page="currentPage"
+        :total="total"
+        :page-size="pageSize"
+        :loading="loading"
+        @previous="handlePreviousPage"
+        @next="handleNextPage"
+      />
     </div>
 
     <!-- Delete Confirmation Dialog -->
@@ -710,7 +832,7 @@ watch(() => props.filters, (newFilters) => {
           <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
           <AlertDialogDescription>
             This action cannot be undone. This will permanently delete the user
-            "{{ userToDelete?.name }}" and remove all their data from our servers.
+            "{{ userToDelete?.name }}" and remove their account from our system.
           </AlertDialogDescription>
         </AlertDialogHeader>
         <AlertDialogFooter class="flex flex-col sm:flex-row gap-2">
@@ -729,36 +851,37 @@ watch(() => props.filters, (newFilters) => {
         </AlertDialogFooter>
       </AlertDialogContent>
     </AlertDialog>
-
-    <!-- Status Toggle Confirmation Dialog -->
-    <AlertDialog v-model:open="statusDialogOpen">
-      <AlertDialogContent class="max-w-[95vw] sm:max-w-md">
-        <AlertDialogHeader>
-          <AlertDialogTitle>
-            {{ userToToggleStatus?.is_active ? 'Deactivate User' : 'Activate User' }}
-          </AlertDialogTitle>
-          <AlertDialogDescription>
-            Are you sure you want to {{ userToToggleStatus?.is_active ? 'deactivate' : 'activate' }} 
-            the user "{{ userToToggleStatus?.name }}"?
-            {{ userToToggleStatus?.is_active ? 'Deactivated users cannot log in to the system.' : 'Activated users will be able to log in again.' }}
-          </AlertDialogDescription>
-        </AlertDialogHeader>
-        <AlertDialogFooter class="flex flex-col sm:flex-row gap-2">
-          <AlertDialogCancel :disabled="togglingStatus" @click="statusDialogOpen = false" class="w-full sm:w-auto">Cancel</AlertDialogCancel>
-          <AlertDialogAction 
-            @click="toggleUserStatus"
-            :class="userToToggleStatus?.is_active ? 'bg-destructive text-destructive-foreground hover:bg-destructive/90' : 'bg-green-600 text-white hover:bg-green-700'"
-            class="w-full sm:w-auto"
-            :disabled="togglingStatus"
-          >
-            <div v-if="togglingStatus" class="flex items-center justify-center space-x-2">
-              <div class="animate-spin rounded-full h-3 w-3 border-b-2 border-white"></div>
-              <span>Processing...</span>
-            </div>
-            <span v-else>{{ userToToggleStatus?.is_active ? 'Deactivate User' : 'Activate User' }}</span>
-          </AlertDialogAction>
-        </AlertDialogFooter>
-      </AlertDialogContent>
-    </AlertDialog>
   </AppLayout>
 </template>
+
+<style scoped>
+/* Additional styling for better table alignment */
+:deep(.data-table) {
+  width: 100%;
+}
+
+:deep(.data-table th) {
+  vertical-align: middle;
+  padding: 0.75rem 0.5rem;
+}
+
+:deep(.data-table td) {
+  vertical-align: middle;
+  padding: 0.75rem 0.5rem;
+}
+
+:deep(.data-table .text-left) {
+  text-align: left;
+  justify-content: flex-start;
+}
+
+:deep(.data-table .text-center) {
+  text-align: center;
+  justify-content: center;
+}
+
+:deep(.data-table .text-right) {
+  text-align: right;
+  justify-content: flex-end;
+}
+</style>
