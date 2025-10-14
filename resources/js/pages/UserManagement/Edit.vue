@@ -130,11 +130,6 @@ const breadcrumbs = computed<BreadcrumbItem[]>(() => [
   },
 ]);
 
-// DEBUG: Log the incoming props to see what we're working with
-console.log('User permissions from props:', props.user.permissions);
-console.log('Permission options:', props.permissionOptions);
-console.log('Permission groups:', props.permissionGroups);
-
 // Form handling - Use POST method with _method field
 const form = useForm({
   _method: 'PUT',
@@ -170,11 +165,11 @@ const getUngroupedPermissions = () => {
   return allPermissions.value.filter(permission => !groupedPermissions.includes(permission));
 };
 
-// Toggle all permissions
+// Toggle all permissions - UPDATED: Same as Create.vue
 const toggleAllPermissions = (checked: boolean) => {
   if (!canEditPermissions.value) return;
   
-  console.log('Toggle all permissions:', checked);
+  selectAllPermissions.value = checked;
   
   if (checked) {
     // Add all permissions
@@ -183,50 +178,42 @@ const toggleAllPermissions = (checked: boolean) => {
     // Remove all permissions
     form.permissions = [];
   }
-  
-  selectAllPermissions.value = checked;
-  console.log('Permissions after toggle all:', form.permissions);
 };
 
-// Toggle single permission using switch
+// Toggle single permission using switch - UPDATED: Same as Create.vue
 const togglePermission = (permission: string, checked: boolean) => {
   if (!canEditPermissions.value) return;
   
-  console.log('Toggle permission:', permission, checked);
-  
-  // Create a new array to ensure reactivity
-  let currentPermissions = [...form.permissions];
-  
   if (checked) {
     // Add permission if not already present
-    if (!currentPermissions.includes(permission)) {
-      currentPermissions.push(permission);
+    if (!form.permissions.includes(permission)) {
+      form.permissions.push(permission);
     }
   } else {
     // Remove permission
-    const index = currentPermissions.indexOf(permission);
+    const index = form.permissions.indexOf(permission);
     if (index > -1) {
-      currentPermissions.splice(index, 1);
+      form.permissions.splice(index, 1);
     }
   }
   
-  // Update the form permissions with the new array
-  form.permissions = currentPermissions;
-  console.log('Permissions after toggle:', form.permissions);
+  // Update select all state based on current permissions
+  updateSelectAllState();
 };
 
 // Check if permission is enabled
 const isPermissionEnabled = (permission: string) => {
-  const isEnabled = form.permissions.includes(permission);
-  console.log(`Checking permission ${permission}:`, isEnabled);
-  return isEnabled;
+  return form.permissions.includes(permission);
 };
 
-// Watch permissions to update select all
-watch(() => form.permissions, (newPermissions) => {
-  const allSelected = newPermissions.length === allPermissions.value.length && allPermissions.value.length > 0;
-  console.log('Permissions changed, select all should be:', allSelected, 'current count:', newPermissions.length, 'total:', allPermissions.value.length);
-  selectAllPermissions.value = allSelected;
+// Update select all state based on current permissions - UPDATED: Same as Create.vue
+const updateSelectAllState = () => {
+  selectAllPermissions.value = form.permissions.length === allPermissions.value.length && allPermissions.value.length > 0;
+};
+
+// Watch permissions to update select all - UPDATED: Same as Create.vue
+watch(() => form.permissions, () => {
+  updateSelectAllState();
 }, { deep: true });
 
 // Check if form has unsaved changes
@@ -291,7 +278,6 @@ const canImpersonateUser = computed(() => {
 
 // Handle form submission - Use POST with _method=PUT
 const submit = () => {
-  console.log('Submitting form with permissions:', form.permissions);
   form.post(`/user-management/${props.user.id}`, {
     preserveScroll: true,
     onSuccess: () => {
@@ -454,16 +440,7 @@ const initializePermissions = () => {
   }
   
   // Initialize select all state
-  const currentPermissions = form.permissions || [];
-  const allPerms = allPermissions.value;
-  selectAllPermissions.value = currentPermissions.length === allPerms.length && allPerms.length > 0;
-  
-  console.log('Initialized permissions:', {
-    userPermissions: props.user.permissions,
-    formPermissions: form.permissions,
-    allPermissions: allPerms,
-    selectAll: selectAllPermissions.value
-  });
+  updateSelectAllState();
 };
 
 // Clear shown messages when component unmounts
@@ -494,15 +471,6 @@ onMounted(() => {
               </Badge>
             </div>
           </div>
-        </div>
-
-        <!-- Debug Info (remove in production) -->
-        <div class="mb-4 p-3 bg-yellow-50 border border-yellow-200 rounded text-sm">
-          <strong>Debug Info:</strong><br>
-          User Permissions: {{ user.permissions }}<br>
-          Form Permissions: {{ form.permissions }}<br>
-          Total Available Permissions: {{ allPermissions.length }}<br>
-          Select All: {{ selectAllPermissions }}
         </div>
 
         <!-- Error summary -->
@@ -623,8 +591,8 @@ onMounted(() => {
                     </p>
                   </div>
                   <Switch
-                    :checked="selectAllPermissions"
-                    @update:checked="toggleAllPermissions"
+                    :model-value="selectAllPermissions"
+                    @update:model-value="toggleAllPermissions"
                     :disabled="!canEditPermissions"
                   />
                 </div>
@@ -662,21 +630,13 @@ onMounted(() => {
                             <p class="text-sm text-muted-foreground">
                               {{ permissionOptions[permissionKey]?.description || 'No description available' }}
                             </p>
-                            <p class="text-xs text-blue-600 mt-1">
-                              Status: {{ isPermissionEnabled(permissionKey) ? 'ENABLED' : 'DISABLED' }}
-                            </p>
                           </div>
-                          <div class="flex items-center space-x-2">
-                            <span class="text-sm text-muted-foreground">
-                              {{ isPermissionEnabled(permissionKey) ? 'On' : 'Off' }}
-                            </span>
-                            <Switch
-                              :checked="isPermissionEnabled(permissionKey)"
-                              @update:checked="(checked: boolean) => togglePermission(permissionKey, checked)"
-                              :disabled="!canEditPermissions"
-                              @click.stop
-                            />
-                          </div>
+                          <Switch
+                            :model-value="isPermissionEnabled(permissionKey)"
+                            @update:model-value="(checked: boolean) => togglePermission(permissionKey, checked)"
+                            :disabled="!canEditPermissions"
+                            @click.stop
+                          />
                         </div>
                       </div>
                     </div>
@@ -704,21 +664,13 @@ onMounted(() => {
                             <p class="text-sm text-muted-foreground">
                               {{ permissionOptions[permissionKey]?.description || 'No description available' }}
                             </p>
-                            <p class="text-xs text-blue-600 mt-1">
-                              Status: {{ isPermissionEnabled(permissionKey) ? 'ENABLED' : 'DISABLED' }}
-                            </p>
                           </div>
-                          <div class="flex items-center space-x-2">
-                            <span class="text-sm text-muted-foreground">
-                              {{ isPermissionEnabled(permissionKey) ? 'On' : 'Off' }}
-                            </span>
-                            <Switch
-                              :checked="isPermissionEnabled(permissionKey)"
-                              @update:checked="(checked: boolean) => togglePermission(permissionKey, checked)"
-                              :disabled="!canEditPermissions"
-                              @click.stop
-                            />
-                          </div>
+                          <Switch
+                            :model-value="isPermissionEnabled(permissionKey)"
+                            @update:model-value="(checked: boolean) => togglePermission(permissionKey, checked)"
+                            :disabled="!canEditPermissions"
+                            @click.stop
+                          />
                         </div>
                       </div>
                     </div>
@@ -832,16 +784,11 @@ onMounted(() => {
                         {{ form.is_active ? 'User can login and access system' : 'User cannot login to system' }}
                       </p>
                     </div>
-                    <div class="flex items-center space-x-2">
-                      <span class="text-sm text-muted-foreground">
-                        {{ form.is_active ? 'On' : 'Off' }}
-                      </span>
-                      <Switch
-                        v-model:checked="form.is_active"
-                        :disabled="!canEditStatus"
-                        aria-label="Toggle account status"
-                      />
-                    </div>
+                    <Switch
+                      v-model="form.is_active"
+                      :disabled="!canEditStatus"
+                      aria-label="Toggle account status"
+                    />
                   </div>
                   <p v-if="isEditingSelf" class="text-xs text-amber-600">
                     You cannot deactivate your own account
