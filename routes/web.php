@@ -1,5 +1,4 @@
 <?php
-// routes/web.php
 
 use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
@@ -17,6 +16,7 @@ Route::get('/', function () {
     return Inertia::render('Welcome');
 })->name('home');
 
+// Dashboard routes - accessible to all authenticated users
 Route::get('dashboard', [DashboardController::class, 'index'])
     ->middleware(['auth', 'verified'])
     ->name('dashboard');
@@ -51,32 +51,53 @@ Route::middleware(['auth'])->group(function () {
     Route::post('/sangguniang-bayan/{sangguniang_bayan}/toggle-status', [SangguniangBayanController::class, 'toggleStatus'])->name('sangguniang-bayan.toggle-status');
     Route::post('/sangguniang-bayan/{sangguniang_bayan}/update-order', [SangguniangBayanController::class, 'updateOrder'])->name('sangguniang-bayan.update-order');
 
-    // User Management routes
+    // User Management routes - Only for admin users (checked in controller)
     Route::resource('user-management', UserManagementController::class);
     Route::post('/user-management/{user}/toggle-status', [UserManagementController::class, 'toggleStatus'])->name('user-management.toggle-status');
     Route::post('/user-management/{user}/resend-verification', [UserManagementController::class, 'resendVerification'])->name('user-management.resend-verification');
+    Route::post('/user-management/{user}/impersonate', [UserManagementController::class, 'impersonate'])->name('user-management.impersonate');
+    Route::post('/user-management/stop-impersonate', [UserManagementController::class, 'stopImpersonate'])->name('user-management.stop-impersonate');
+
+    // Full Disclosure routes
+    Route::resource('full-disclosure', FullDisclosureController::class);
+    Route::get('/full-disclosure/{full_disclosure}/download', [FullDisclosureController::class, 'download'])->name('full-disclosure.download');
+
+    // Ordinance & Resolution routes
+    Route::resource('ordinance-resolutions', OrdinanceResolutionController::class);
+    Route::post('/ordinance-resolutions/{ordinance_resolution}/toggle-featured', [OrdinanceResolutionController::class, 'toggleFeatured'])->name('ordinance-resolutions.toggle-featured');
+    Route::post('/ordinance-resolutions/{ordinance_resolution}/toggle-status', [OrdinanceResolutionController::class, 'toggleStatus'])->name('ordinance-resolutions.toggle-status');
+    Route::get('/ordinance-resolutions/{ordinance_resolution}/download', [OrdinanceResolutionController::class, 'download'])->name('ordinance-resolutions.download');
+
+    // Activity Logs routes
+    Route::get('/activity-logs', function () {
+        return Inertia::render('ActivityLogs/Index');
+    })->name('activity-logs.index');
+
+    // Trash routes
+    Route::get('/trash', function () {
+        return Inertia::render('Trash/Index');
+    })->name('trash.index');
+
+    // Business Permit routes
+    Route::get('/business-permit', function () {
+        return Inertia::render('BusinessPermit/Index');
+    })->name('business-permit.index');
+    
+    Route::get('/new-application', function () {
+        return Inertia::render('BusinessPermit/NewApplication');
+    })->name('new-application.index');
+    
+    Route::get('/renewal-permit', function () {
+        return Inertia::render('BusinessPermit/RenewalPermit');
+    })->name('renewal-permit.index');
 });
 
-// Public show routes
+// Public show routes - no authentication required for viewing
 Route::get('/news/{news}', [NewsController::class, 'show'])->name('news.show');
 Route::get('/bids-awards/{bids_award}', [BidsAwardsController::class, 'show'])->name('bids-awards.show');
 Route::get('/tourism/{tourism_package}', [TourismPackageController::class, 'show'])->name('tourism.show');
 Route::get('/awards-recognition/{awards_recognition}', [AwardsRecognitionController::class, 'show'])->name('awards-recognition.show');
 Route::get('/sangguniang-bayan/{sangguniang_bayan}', [SangguniangBayanController::class, 'show'])->name('sangguniang-bayan.show');
-
-Route::middleware(['auth'])->group(function () {
-    // Full Disclosure routes
-    Route::resource('full-disclosure', FullDisclosureController::class);
-    Route::get('/full-disclosure/{full_disclosure}/download', [FullDisclosureController::class, 'download'])->name('full-disclosure.download');
-});
-
-// Ordinance & Resolution routes
-Route::resource('ordinance-resolutions', OrdinanceResolutionController::class);
-Route::post('/ordinance-resolutions/{ordinance_resolution}/toggle-featured', [OrdinanceResolutionController::class, 'toggleFeatured'])->name('ordinance-resolutions.toggle-featured');
-Route::post('/ordinance-resolutions/{ordinance_resolution}/toggle-status', [OrdinanceResolutionController::class, 'toggleStatus'])->name('ordinance-resolutions.toggle-status');
-Route::get('/ordinance-resolutions/{ordinance_resolution}/download', [OrdinanceResolutionController::class, 'download'])->name('ordinance-resolutions.download');
-
-// Public show route
 Route::get('/ordinance-resolutions/{ordinance_resolution}', [OrdinanceResolutionController::class, 'show'])->name('ordinance-resolutions.show');
 
 require __DIR__.'/settings.php';

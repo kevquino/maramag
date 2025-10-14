@@ -3,7 +3,7 @@ import AppLayout from '@/layouts/AppLayout.vue';
 import { dashboard } from '@/routes';
 import { type BreadcrumbItem } from '@/types';
 import { Head, router, useForm, usePage } from '@inertiajs/vue3';
-import { ArrowLeft, Save, User, Mail, Shield, Building } from 'lucide-vue-next';
+import { ArrowLeft, Save, User, Mail, Shield, Building, CheckSquare, Square } from 'lucide-vue-next';
 import { ref, computed, watch, nextTick, onMounted } from 'vue';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -17,6 +17,8 @@ import {
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { Switch } from '@/components/ui/switch';
+import { Checkbox } from '@/components/ui/checkbox';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { toast } from 'vue-sonner';
 import {
   AlertDialog,
@@ -33,6 +35,8 @@ import {
 const props = defineProps<{
   roleOptions: Record<string, string>;
   officeOptions: Record<string, string>;
+  permissionOptions: Record<string, any>;
+  permissionGroups: Record<string, any>;
 }>();
 
 const page = usePage();
@@ -122,15 +126,74 @@ const form = useForm({
   is_active: true,
   password: '',
   password_confirmation: '',
+  permissions: [] as string[],
 });
 
 // Dialog states
 const saveDialogOpen = ref(false);
 const cancelDialogOpen = ref(false);
 
+// Permission selection
+const selectAllPermissions = ref(false);
+
+// Get ungrouped permissions
+const getUngroupedPermissions = () => {
+  const allPermissions = Object.keys(props.permissionOptions);
+  const groupedPermissions = Object.values(props.permissionGroups).flatMap((group: any) => group.permissions);
+  return allPermissions.filter(permission => !groupedPermissions.includes(permission));
+};
+
+// Toggle all permissions - FIXED: Properly handles the switch state
+const toggleAllPermissions = (checked: boolean) => {
+  selectAllPermissions.value = checked;
+  
+  if (checked) {
+    // Add all permissions
+    form.permissions = Object.keys(props.permissionOptions);
+  } else {
+    // Remove all permissions
+    form.permissions = [];
+  }
+};
+
+// Toggle single permission using switch
+const togglePermission = (permission: string, checked: boolean) => {
+  if (checked) {
+    // Add permission if not already present
+    if (!form.permissions.includes(permission)) {
+      form.permissions.push(permission);
+    }
+  } else {
+    // Remove permission
+    const index = form.permissions.indexOf(permission);
+    if (index > -1) {
+      form.permissions.splice(index, 1);
+    }
+  }
+  
+  // Update select all state based on current permissions
+  updateSelectAllState();
+};
+
+// Check if permission is enabled
+const isPermissionEnabled = (permission: string) => {
+  return form.permissions.includes(permission);
+};
+
+// Update select all state based on current permissions - FIXED: Proper state calculation
+const updateSelectAllState = () => {
+  const allPermissions = Object.keys(props.permissionOptions);
+  selectAllPermissions.value = form.permissions.length === allPermissions.length && allPermissions.length > 0;
+};
+
+// Watch permissions to update select all - FIXED: Use the proper update function
+watch(() => form.permissions, () => {
+  updateSelectAllState();
+}, { deep: true });
+
 // Check if form has unsaved changes
 const hasUnsavedChanges = computed(() => {
-  return !!form.name || !!form.email || !!form.role || !!form.office || !!form.password;
+  return !!form.name || !!form.email || !!form.role || !!form.office || !!form.password || form.permissions.length > 0;
 });
 
 // Get user summary for confirmation dialogs
@@ -141,6 +204,7 @@ const userSummary = computed(() => {
     role: props.roleOptions[form.role] || form.role || 'Not selected',
     office: props.officeOptions[form.office] || form.office || 'Not selected',
     status: form.is_active ? 'Active' : 'Inactive',
+    permissions: form.permissions.length,
   };
 });
 
@@ -226,6 +290,8 @@ const cancel = () => {
 // Clear shown messages when component unmounts
 onMounted(() => {
   shownFlashMessages.value.clear();
+  // Initialize select all state
+  updateSelectAllState();
 });
 </script>
 
@@ -332,6 +398,110 @@ onMounted(() => {
                 </div>
               </div>
             </div>
+
+            <!-- Permissions Card -->
+            <Card>
+              <CardHeader>
+                <CardTitle class="flex items-center gap-2">
+                  <CheckSquare class="h-5 w-5 text-blue-600" />
+                  Module Permissions
+                </CardTitle>
+                <CardDescription>
+                  Select which modules and pages this user can access
+                </CardDescription>
+              </CardHeader>
+              <CardContent class="space-y-6">
+                <!-- Select All Toggle -->
+                <div class="flex items-center justify-between p-4 border rounded-lg bg-muted/30">
+                  <div class="space-y-0.5">
+                    <Label class="text-base font-medium">Select All Permissions</Label>
+                    <p class="text-sm text-muted-foreground">
+                      Enable or disable all permissions at once
+                    </p>
+                  </div>
+                  <Switch
+                    :model-value="selectAllPermissions"
+                    @update:model-value="toggleAllPermissions"
+                  />
+                </div>
+
+                <!-- Permissions List - Single Box -->
+                <div class="border rounded-lg">
+                  <div class="p-4 bg-muted/30 border-b">
+                    <h3 class="font-semibold text-sm">All Permissions</h3>
+                    <p class="text-xs text-muted-foreground mt-1">
+                      {{ Object.keys(permissionOptions).length }} total permissions • {{ form.permissions.length }} enabled
+                    </p>
+                  </div>
+                  
+                  <div class="p-4 space-y-4">
+                    <!-- Group permissions by category for better organization -->
+                    <div v-for="(group, groupKey) in permissionGroups" :key="groupKey" class="space-y-3">
+                      <div class="flex items-center space-x-2">
+                        <div class="h-px flex-1 bg-border"></div>
+                        <span class="text-xs font-medium text-muted-foreground px-2 bg-background">{{ group.label }}</span>
+                        <div class="h-px flex-1 bg-border"></div>
+                      </div>
+                      
+                      <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+                        <div
+                          v-for="permissionKey in group.permissions"
+                          :key="permissionKey"
+                          class="flex flex-row items-center justify-between rounded-lg border p-4 transition-colors hover:bg-muted/30 cursor-pointer"
+                        >
+                          <div class="space-y-0.5 flex-1">
+                            <Label class="text-base font-medium cursor-pointer">
+                              {{ permissionOptions[permissionKey]?.label || permissionKey }}
+                            </Label>
+                            <p class="text-sm text-muted-foreground">
+                              {{ permissionOptions[permissionKey]?.description || 'No description available' }}
+                            </p>
+                          </div>
+                          <Switch
+                            :model-value="isPermissionEnabled(permissionKey)"
+                            @update:model-value="(checked: boolean) => togglePermission(permissionKey, checked)"
+                          />
+                        </div>
+                      </div>
+                    </div>
+
+                    <!-- Handle any permissions not in groups -->
+                    <div v-if="getUngroupedPermissions().length > 0" class="space-y-3">
+                      <div class="flex items-center space-x-2">
+                        <div class="h-px flex-1 bg-border"></div>
+                        <span class="text-xs font-medium text-muted-foreground px-2 bg-background">Other Permissions</span>
+                        <div class="h-px flex-1 bg-border"></div>
+                      </div>
+                      
+                      <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+                        <div
+                          v-for="permissionKey in getUngroupedPermissions()"
+                          :key="permissionKey"
+                          class="flex flex-row items-center justify-between rounded-lg border p-4 transition-colors hover:bg-muted/30 cursor-pointer"
+                        >
+                          <div class="space-y-0.5 flex-1">
+                            <Label class="text-base font-medium cursor-pointer">
+                              {{ permissionOptions[permissionKey]?.label || permissionKey }}
+                            </Label>
+                            <p class="text-sm text-muted-foreground">
+                              {{ permissionOptions[permissionKey]?.description || 'No description available' }}
+                            </p>
+                          </div>
+                          <Switch
+                            :model-value="isPermissionEnabled(permissionKey)"
+                            @update:model-value="(checked: boolean) => togglePermission(permissionKey, checked)"
+                          />
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <div v-if="form.errors.permissions" class="text-sm text-destructive">
+                  {{ form.errors.permissions }}
+                </div>
+              </CardContent>
+            </Card>
           </div>
 
           <!-- Right Column - Sidebar -->
@@ -422,6 +592,40 @@ onMounted(() => {
               </div>
             </div>
 
+            <!-- Summary Card -->
+            <Card>
+              <CardHeader>
+                <CardTitle class="text-sm">Summary</CardTitle>
+              </CardHeader>
+              <CardContent class="space-y-3 text-sm">
+                <div class="flex justify-between">
+                  <span class="text-muted-foreground">Selected Permissions:</span>
+                  <span class="font-medium">{{ form.permissions.length }}</span>
+                </div>
+                <div class="flex justify-between">
+                  <span class="text-muted-foreground">Role:</span>
+                  <Badge 
+                    v-if="form.role"
+                    :variant="form.role === 'admin' ? 'destructive' : form.role === 'PIO Officer' ? 'default' : form.role === 'PIO Staff' ? 'secondary' : 'outline'"
+                    class="text-xs"
+                  >
+                    {{ roleOptions[form.role] || form.role }}
+                  </Badge>
+                  <span v-else class="text-muted-foreground text-xs">Not selected</span>
+                </div>
+                <div class="flex justify-between">
+                  <span class="text-muted-foreground">Office:</span>
+                  <span class="font-medium text-right text-xs">{{ officeOptions[form.office] || form.office || 'Not selected' }}</span>
+                </div>
+                <div class="flex justify-between">
+                  <span class="text-muted-foreground">Status:</span>
+                  <Badge :variant="form.is_active ? 'default' : 'secondary'" class="text-xs">
+                    {{ form.is_active ? 'Active' : 'Inactive' }}
+                  </Badge>
+                </div>
+              </CardContent>
+            </Card>
+
             <!-- Actions Card -->
             <div class="bg-card rounded-lg border shadow-sm">
               <div class="p-4 sm:p-6">
@@ -484,6 +688,10 @@ onMounted(() => {
                 <span class="font-medium">Status:</span>
                 <span>{{ userSummary.status }}</span>
               </div>
+              <div class="flex justify-between">
+                <span class="font-medium">Permissions:</span>
+                <span>{{ userSummary.permissions }} modules</span>
+              </div>
             </div>
           </AlertDialogDescription>
         </AlertDialogHeader>
@@ -524,43 +732,3 @@ onMounted(() => {
     </AlertDialog>
   </AppLayout>
 </template>
-
-<style scoped>
-.resize-vertical {
-  resize: vertical;
-}
-
-/* Custom scrollbar for textareas */
-textarea::-webkit-scrollbar {
-  width: 6px;
-}
-
-textarea::-webkit-scrollbar-track {
-  background: #f1f1f1;
-  border-radius: 3px;
-}
-
-textarea::-webkit-scrollbar-thumb {
-  background: #c1c1c1;
-  border-radius: 3px;
-}
-
-textarea::-webkit-scrollbar-thumb:hover {
-  background: #a8a8a8;
-}
-
-/* Dark mode support */
-@media (prefers-color-scheme: dark) {
-  textarea::-webkit-scrollbar-track {
-    background: #374151;
-  }
-
-  textarea::-webkit-scrollbar-thumb {
-    background: #6b7280;
-  }
-
-  textarea::-webkit-scrollbar-thumb:hover {
-    background: #9ca3af;
-  }
-}
-</style>

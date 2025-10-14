@@ -3,7 +3,7 @@ import AppLayout from '@/layouts/AppLayout.vue';
 import { dashboard } from '@/routes';
 import { type BreadcrumbItem } from '@/types';
 import { Head, router, useForm, usePage } from '@inertiajs/vue3';
-import { ArrowLeft, Save, User, Mail, Shield, Building, Eye, Trash2 } from 'lucide-vue-next';
+import { ArrowLeft, Save, User, Mail, Shield, Building, Eye, Trash2, CheckSquare, Square, LogOut } from 'lucide-vue-next';
 import { ref, computed, watch, nextTick, onMounted } from 'vue';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -17,6 +17,8 @@ import {
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { Switch } from '@/components/ui/switch';
+import { Checkbox } from '@/components/ui/checkbox';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { toast } from 'vue-sonner';
 import {
   AlertDialog,
@@ -41,9 +43,13 @@ const props = defineProps<{
     email_verified_at: string | null;
     created_at: string;
     updated_at: string;
+    permissions: string[];
   };
   roleOptions: Record<string, string>;
   officeOptions: Record<string, string>;
+  permissionOptions: Record<string, any>;
+  permissionGroups: Record<string, any>;
+  canEditPermissions?: boolean;
 }>();
 
 const page = usePage();
@@ -109,7 +115,7 @@ watch(() => page.props.flash as FlashMessages | undefined, (newFlash, oldFlash) 
 }, { deep: true, immediate: true });
 
 // Breadcrumbs
-const breadcrumbs: BreadcrumbItem[] = [
+const breadcrumbs = computed<BreadcrumbItem[]>(() => [
   {
     title: 'Dashboard',
     href: dashboard().url,
@@ -119,10 +125,15 @@ const breadcrumbs: BreadcrumbItem[] = [
     href: '/user-management',
   },
   {
-    title: 'Edit User',
+    title: `Edit ${props.user.name}`,
     href: `/user-management/${props.user.id}/edit`,
   },
-];
+]);
+
+// DEBUG: Log the incoming props to see what we're working with
+console.log('User permissions from props:', props.user.permissions);
+console.log('Permission options:', props.permissionOptions);
+console.log('Permission groups:', props.permissionGroups);
 
 // Form handling - Use POST method with _method field
 const form = useForm({
@@ -134,13 +145,89 @@ const form = useForm({
   is_active: props.user.is_active,
   password: '',
   password_confirmation: '',
+  permissions: Array.isArray(props.user.permissions) ? [...props.user.permissions] : [],
 });
 
 // Dialog states
 const saveDialogOpen = ref(false);
 const cancelDialogOpen = ref(false);
 const deleteDialogOpen = ref(false);
+const impersonateDialogOpen = ref(false);
 const deleting = ref(false);
+const impersonating = ref(false);
+
+// Permission selection
+const selectAllPermissions = ref(false);
+
+// Get all available permissions
+const allPermissions = computed(() => {
+  return Object.keys(props.permissionOptions);
+});
+
+// Get ungrouped permissions
+const getUngroupedPermissions = () => {
+  const groupedPermissions = Object.values(props.permissionGroups).flatMap((group: any) => group.permissions || []);
+  return allPermissions.value.filter(permission => !groupedPermissions.includes(permission));
+};
+
+// Toggle all permissions
+const toggleAllPermissions = (checked: boolean) => {
+  if (!canEditPermissions.value) return;
+  
+  console.log('Toggle all permissions:', checked);
+  
+  if (checked) {
+    // Add all permissions
+    form.permissions = [...allPermissions.value];
+  } else {
+    // Remove all permissions
+    form.permissions = [];
+  }
+  
+  selectAllPermissions.value = checked;
+  console.log('Permissions after toggle all:', form.permissions);
+};
+
+// Toggle single permission using switch
+const togglePermission = (permission: string, checked: boolean) => {
+  if (!canEditPermissions.value) return;
+  
+  console.log('Toggle permission:', permission, checked);
+  
+  // Create a new array to ensure reactivity
+  let currentPermissions = [...form.permissions];
+  
+  if (checked) {
+    // Add permission if not already present
+    if (!currentPermissions.includes(permission)) {
+      currentPermissions.push(permission);
+    }
+  } else {
+    // Remove permission
+    const index = currentPermissions.indexOf(permission);
+    if (index > -1) {
+      currentPermissions.splice(index, 1);
+    }
+  }
+  
+  // Update the form permissions with the new array
+  form.permissions = currentPermissions;
+  console.log('Permissions after toggle:', form.permissions);
+};
+
+// Check if permission is enabled
+const isPermissionEnabled = (permission: string) => {
+  const isEnabled = form.permissions.includes(permission);
+  console.log(`Checking permission ${permission}:`, isEnabled);
+  return isEnabled;
+};
+
+// Watch permissions to update select all
+watch(() => form.permissions, (newPermissions) => {
+  const allSelected = newPermissions.length === allPermissions.value.length && allPermissions.value.length > 0;
+  console.log('Permissions changed, select all should be:', allSelected, 'current count:', newPermissions.length, 'total:', allPermissions.value.length);
+  selectAllPermissions.value = allSelected;
+}, { deep: true });
 
 // Check if form has unsaved changes
 const hasUnsavedChanges = computed(() => {
@@ -150,7 +237,8 @@ const hasUnsavedChanges = computed(() => {
          form.office !== props.user.office ||
          form.is_active !== props.user.is_active ||
          form.password !== '' ||
-         form.password_confirmation !== '';
+         form.password_confirmation !== '' ||
+         JSON.stringify([...form.permissions].sort()) !== JSON.stringify([...(props.user.permissions || [])].sort());
 });
 
 // Get user summary for confirmation dialogs
@@ -161,12 +249,49 @@ const userSummary = computed(() => {
     role: props.roleOptions[form.role] || form.role,
     office: props.officeOptions[form.office] || form.office,
     status: form.is_active ? 'Active' : 'Inactive',
-    hasPassword: !!form.password
+    hasPassword: !!form.password,
+    permissions: form.permissions.length,
   };
+});
+
+// Check if current user is editing their own profile
+const isEditingSelf = computed(() => {
+  return props.user.id === (page.props.auth.user as any).id;
+});
+
+// Check if current user is admin
+const isAdmin = computed(() => {
+  return (page.props.auth.user as any).role === 'admin';
+});
+
+// Check if can edit permissions
+const canEditPermissions = computed(() => {
+  return isAdmin.value && !isEditingSelf.value;
+});
+
+// Check if can edit role and office
+const canEditRoleOffice = computed(() => {
+  return isAdmin.value && !isEditingSelf.value;
+});
+
+// Check if can edit status
+const canEditStatus = computed(() => {
+  return isAdmin.value && !isEditingSelf.value;
+});
+
+// Check if can delete user
+const canDeleteUser = computed(() => {
+  return isAdmin.value && !isEditingSelf.value;
+});
+
+// Check if can impersonate user
+const canImpersonateUser = computed(() => {
+  return isAdmin.value && !isEditingSelf.value;
 });
 
 // Handle form submission - Use POST with _method=PUT
 const submit = () => {
+  console.log('Submitting form with permissions:', form.permissions);
   form.post(`/user-management/${props.user.id}`, {
     preserveScroll: true,
     onSuccess: () => {
@@ -201,13 +326,16 @@ const validateForm = (): boolean => {
     showToast('Please enter an email address.', 'error');
     return false;
   }
-  if (!form.role) {
-    showToast('Please select a role.', 'error');
-    return false;
-  }
-  if (!form.office) {
-    showToast('Please select an office.', 'error');
-    return false;
+  // Only validate role and office if admin is editing another user
+  if (isAdmin.value && !isEditingSelf.value) {
+    if (!form.role) {
+      showToast('Please select a role.', 'error');
+      return false;
+    }
+    if (!form.office) {
+      showToast('Please select an office.', 'error');
+      return false;
+    }
   }
   if (form.password && form.password !== form.password_confirmation) {
     showToast('Password confirmation does not match.', 'error');
@@ -237,7 +365,11 @@ const confirmCancel = () => {
 
 // Cancel and go back
 const cancel = () => {
-  router.visit('/user-management');
+  if (isEditingSelf.value) {
+    router.visit('/dashboard');
+  } else {
+    router.visit('/user-management');
+  }
 };
 
 // Delete user using Inertia
@@ -265,9 +397,39 @@ const deleteUser = async () => {
   }
 };
 
+// Impersonate user
+const impersonateUser = async () => {
+  impersonating.value = true;
+  try {
+    router.post(`/user-management/${props.user.id}/impersonate`, {}, {
+      preserveScroll: false,
+      onSuccess: () => {
+        // Success handled by server redirect
+      },
+      onError: (errors) => {
+        const errorMsg = errors.message || 'Failed to impersonate user';
+        showToast(errorMsg, 'error');
+        impersonating.value = false;
+        impersonateDialogOpen.value = false;
+      },
+    });
+  } catch (err) {
+    console.error('Failed to impersonate user:', err);
+    const errorMsg = err instanceof Error ? err.message : 'Failed to impersonate user';
+    showToast(errorMsg, 'error');
+    impersonating.value = false;
+    impersonateDialogOpen.value = false;
+  }
+};
+
 // Open delete confirmation dialog
 const openDeleteDialog = () => {
   deleteDialogOpen.value = true;
+};
+
+// Open impersonate confirmation dialog
+const openImpersonateDialog = () => {
+  impersonateDialogOpen.value = true;
 };
 
 // Format date for display
@@ -282,19 +444,36 @@ const formatDate = (dateString: string | null) => {
   });
 };
 
-// Check if current user is editing their own profile
-const isEditingSelf = computed(() => {
-  return props.user.id === (page.props.auth.user as any).id;
-});
+// Initialize permissions
+const initializePermissions = () => {
+  shownFlashMessages.value.clear();
+  
+  // Ensure permissions is always an array
+  if (!Array.isArray(form.permissions)) {
+    form.permissions = [];
+  }
+  
+  // Initialize select all state
+  const currentPermissions = form.permissions || [];
+  const allPerms = allPermissions.value;
+  selectAllPermissions.value = currentPermissions.length === allPerms.length && allPerms.length > 0;
+  
+  console.log('Initialized permissions:', {
+    userPermissions: props.user.permissions,
+    formPermissions: form.permissions,
+    allPermissions: allPerms,
+    selectAll: selectAllPermissions.value
+  });
+};
 
 // Clear shown messages when component unmounts
 onMounted(() => {
-  shownFlashMessages.value.clear();
+  initializePermissions();
 });
 </script>
 
 <template>
-  <Head title="Edit User" />
+  <Head :title="`Edit ${user.name}`" />
 
   <AppLayout :breadcrumbs="breadcrumbs">
     <div class="w-full p-4 sm:p-6">
@@ -304,7 +483,26 @@ onMounted(() => {
           <div class="flex-1 min-w-0">
             <h1 class="text-2xl sm:text-3xl font-bold text-foreground truncate">Edit User</h1>
             <p class="text-muted-foreground mt-1">Update user details and permissions</p>
+            <div v-if="isEditingSelf" class="mt-2">
+              <Badge variant="outline" class="bg-blue-50 text-blue-700 border-blue-200">
+                Editing your own profile
+              </Badge>
+            </div>
+            <div v-else-if="isAdmin" class="mt-2">
+              <Badge variant="outline" class="bg-green-50 text-green-700 border-green-200">
+                Admin Editing User
+              </Badge>
+            </div>
           </div>
+        </div>
+
+        <!-- Debug Info (remove in production) -->
+        <div class="mb-4 p-3 bg-yellow-50 border border-yellow-200 rounded text-sm">
+          <strong>Debug Info:</strong><br>
+          User Permissions: {{ user.permissions }}<br>
+          Form Permissions: {{ form.permissions }}<br>
+          Total Available Permissions: {{ allPermissions.length }}<br>
+          Select All: {{ selectAllPermissions }}
         </div>
 
         <!-- Error summary -->
@@ -403,6 +601,142 @@ onMounted(() => {
                 </div>
               </div>
             </div>
+
+            <!-- Permissions Card -->
+            <Card v-if="isAdmin">
+              <CardHeader>
+                <CardTitle class="flex items-center gap-2">
+                  <CheckSquare class="h-5 w-5 text-blue-600" />
+                  Module Permissions
+                </CardTitle>
+                <CardDescription>
+                  Select which modules and pages this user can access
+                </CardDescription>
+              </CardHeader>
+              <CardContent class="space-y-6">
+                <!-- Select All Toggle -->
+                <div class="flex items-center justify-between p-4 border rounded-lg bg-muted/30">
+                  <div class="space-y-0.5">
+                    <Label class="text-base font-medium">Select All Permissions</Label>
+                    <p class="text-sm text-muted-foreground">
+                      Enable or disable all permissions at once
+                    </p>
+                  </div>
+                  <Switch
+                    :checked="selectAllPermissions"
+                    @update:checked="toggleAllPermissions"
+                    :disabled="!canEditPermissions"
+                  />
+                </div>
+
+                <!-- Permissions List - Single Box -->
+                <div class="border rounded-lg">
+                  <div class="p-4 bg-muted/30 border-b">
+                    <h3 class="font-semibold text-sm">All Permissions</h3>
+                    <p class="text-xs text-muted-foreground mt-1">
+                      {{ allPermissions.length }} total permissions • {{ form.permissions.length }} enabled
+                    </p>
+                  </div>
+                  
+                  <div class="p-4 space-y-4">
+                    <!-- Group permissions by category for better organization -->
+                    <div v-for="(group, groupKey) in permissionGroups" :key="groupKey" class="space-y-3">
+                      <div class="flex items-center space-x-2">
+                        <div class="h-px flex-1 bg-border"></div>
+                        <span class="text-xs font-medium text-muted-foreground px-2 bg-background">{{ group.label }}</span>
+                        <div class="h-px flex-1 bg-border"></div>
+                      </div>
+                      
+                      <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+                        <div
+                          v-for="permissionKey in group.permissions || []"
+                          :key="permissionKey"
+                          class="flex flex-row items-center justify-between rounded-lg border p-4 transition-colors"
+                          :class="canEditPermissions ? 'hover:bg-muted/30 cursor-pointer' : ''"
+                          @click="canEditPermissions && togglePermission(permissionKey, !isPermissionEnabled(permissionKey))"
+                        >
+                          <div class="space-y-0.5 flex-1">
+                            <Label class="text-base font-medium cursor-pointer">
+                              {{ permissionOptions[permissionKey]?.label || permissionKey }}
+                            </Label>
+                            <p class="text-sm text-muted-foreground">
+                              {{ permissionOptions[permissionKey]?.description || 'No description available' }}
+                            </p>
+                            <p class="text-xs text-blue-600 mt-1">
+                              Status: {{ isPermissionEnabled(permissionKey) ? 'ENABLED' : 'DISABLED' }}
+                            </p>
+                          </div>
+                          <div class="flex items-center space-x-2">
+                            <span class="text-sm text-muted-foreground">
+                              {{ isPermissionEnabled(permissionKey) ? 'On' : 'Off' }}
+                            </span>
+                            <Switch
+                              :checked="isPermissionEnabled(permissionKey)"
+                              @update:checked="(checked: boolean) => togglePermission(permissionKey, checked)"
+                              :disabled="!canEditPermissions"
+                              @click.stop
+                            />
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+
+                    <!-- Handle any permissions not in groups -->
+                    <div v-if="getUngroupedPermissions().length > 0" class="space-y-3">
+                      <div class="flex items-center space-x-2">
+                        <div class="h-px flex-1 bg-border"></div>
+                        <span class="text-xs font-medium text-muted-foreground px-2 bg-background">Other Permissions</span>
+                        <div class="h-px flex-1 bg-border"></div>
+                      </div>
+                      
+                      <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+                        <div
+                          v-for="permissionKey in getUngroupedPermissions()"
+                          :key="permissionKey"
+                          class="flex flex-row items-center justify-between rounded-lg border p-4 transition-colors"
+                          :class="canEditPermissions ? 'hover:bg-muted/30 cursor-pointer' : ''"
+                          @click="canEditPermissions && togglePermission(permissionKey, !isPermissionEnabled(permissionKey))"
+                        >
+                          <div class="space-y-0.5 flex-1">
+                            <Label class="text-base font-medium cursor-pointer">
+                              {{ permissionOptions[permissionKey]?.label || permissionKey }}
+                            </Label>
+                            <p class="text-sm text-muted-foreground">
+                              {{ permissionOptions[permissionKey]?.description || 'No description available' }}
+                            </p>
+                            <p class="text-xs text-blue-600 mt-1">
+                              Status: {{ isPermissionEnabled(permissionKey) ? 'ENABLED' : 'DISABLED' }}
+                            </p>
+                          </div>
+                          <div class="flex items-center space-x-2">
+                            <span class="text-sm text-muted-foreground">
+                              {{ isPermissionEnabled(permissionKey) ? 'On' : 'Off' }}
+                            </span>
+                            <Switch
+                              :checked="isPermissionEnabled(permissionKey)"
+                              @update:checked="(checked: boolean) => togglePermission(permissionKey, checked)"
+                              :disabled="!canEditPermissions"
+                              @click.stop
+                            />
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <div v-if="form.errors.permissions" class="text-sm text-destructive">
+                  {{ form.errors.permissions }}
+                </div>
+
+                <div v-if="!canEditPermissions" class="p-3 bg-amber-50 border border-amber-200 rounded-lg">
+                  <p class="text-sm text-amber-800">
+                    <span v-if="isEditingSelf">You cannot edit your own permissions.</span>
+                    <span v-else>You don't have permission to edit permissions. Only administrators can modify user permissions.</span>
+                  </p>
+                </div>
+              </CardContent>
+            </Card>
           </div>
 
           <!-- Right Column - Sidebar -->
@@ -421,7 +755,11 @@ onMounted(() => {
                       <Shield class="h-4 w-4 text-muted-foreground" />
                     </div>
                     <div class="flex-1">
-                      <Select v-model="form.role" :class="form.errors.role ? 'border-destructive' : ''">
+                      <Select 
+                        v-model="form.role" 
+                        :class="form.errors.role ? 'border-destructive' : ''"
+                        :disabled="!canEditRoleOffice"
+                      >
                         <SelectTrigger class="w-full">
                           <SelectValue />
                         </SelectTrigger>
@@ -445,6 +783,9 @@ onMounted(() => {
                     </div>
                   </div>
                   <p v-if="form.errors.role" class="text-sm text-destructive">{{ form.errors.role }}</p>
+                  <p v-if="!canEditRoleOffice" class="text-xs text-muted-foreground">
+                    You cannot change your own role
+                  </p>
                 </div>
 
                 <!-- Office -->
@@ -455,7 +796,11 @@ onMounted(() => {
                       <Building class="h-4 w-4 text-muted-foreground" />
                     </div>
                     <div class="flex-1">
-                      <Select v-model="form.office" :class="form.errors.office ? 'border-destructive' : ''">
+                      <Select 
+                        v-model="form.office" 
+                        :class="form.errors.office ? 'border-destructive' : ''"
+                        :disabled="!canEditRoleOffice"
+                      >
                         <SelectTrigger class="w-full">
                           <SelectValue />
                         </SelectTrigger>
@@ -472,10 +817,13 @@ onMounted(() => {
                     </div>
                   </div>
                   <p v-if="form.errors.office" class="text-sm text-destructive">{{ form.errors.office }}</p>
+                  <p v-if="!canEditRoleOffice" class="text-xs text-muted-foreground">
+                    You cannot change your own office
+                  </p>
                 </div>
 
                 <!-- Status Toggle -->
-                <div class="space-y-2">
+                <div class="space-y-2" v-if="isAdmin">
                   <Label class="text-sm font-medium">Account Status</Label>
                   <div class="flex items-center justify-between p-3 border rounded-lg bg-muted/50">
                     <div class="space-y-0.5">
@@ -484,14 +832,22 @@ onMounted(() => {
                         {{ form.is_active ? 'User can login and access system' : 'User cannot login to system' }}
                       </p>
                     </div>
-                    <Switch
-                      v-model="form.is_active"
-                      :disabled="isEditingSelf"
-                      aria-label="Toggle account status"
-                    />
+                    <div class="flex items-center space-x-2">
+                      <span class="text-sm text-muted-foreground">
+                        {{ form.is_active ? 'On' : 'Off' }}
+                      </span>
+                      <Switch
+                        v-model:checked="form.is_active"
+                        :disabled="!canEditStatus"
+                        aria-label="Toggle account status"
+                      />
+                    </div>
                   </div>
                   <p v-if="isEditingSelf" class="text-xs text-amber-600">
                     You cannot deactivate your own account
+                  </p>
+                  <p v-if="!canEditStatus && !isEditingSelf" class="text-xs text-muted-foreground">
+                    Only administrators can change account status
                   </p>
                 </div>
               </div>
@@ -522,6 +878,22 @@ onMounted(() => {
                       {{ user.email_verified_at ? 'Yes' : 'No' }}
                     </p>
                   </div>
+                  <div class="col-span-2 space-y-1">
+                    <span class="font-medium text-muted-foreground">Current Permissions:</span>
+                    <div class="flex flex-wrap gap-1 mt-1">
+                      <Badge 
+                        v-for="permission in form.permissions || []" 
+                        :key="permission"
+                        variant="outline"
+                        class="text-xs"
+                      >
+                        {{ permissionOptions[permission]?.label || permission }}
+                      </Badge>
+                      <span v-if="!form.permissions || form.permissions.length === 0" class="text-xs text-muted-foreground">
+                        No permissions assigned
+                      </span>
+                    </div>
+                  </div>
                 </div>
               </div>
             </div>
@@ -539,7 +911,7 @@ onMounted(() => {
                   >
                     <Save class="h-4 w-4 mr-2" />
                     <span v-if="form.processing">Saving...</span>
-                    <span v-else>Save Changes</span>
+                    <span v-else>{{ isEditingSelf ? 'Update Profile' : 'Save Changes' }}</span>
                   </Button>
                   
                   <Button
@@ -553,19 +925,34 @@ onMounted(() => {
                     Cancel
                   </Button>
 
+                  <!-- Impersonate Button (Admin only, not for self) -->
                   <Button
+                    v-if="canImpersonateUser"
+                    type="button"
+                    variant="secondary"
+                    @click="openImpersonateDialog"
+                    :disabled="form.processing"
+                    class="w-full"
+                  >
+                    <LogOut class="h-4 w-4 mr-2" />
+                    Impersonate User
+                  </Button>
+
+                  <!-- Delete Button (Admin only, not for self) -->
+                  <Button
+                    v-if="canDeleteUser"
                     type="button"
                     variant="destructive"
                     @click="openDeleteDialog"
-                    :disabled="form.processing || isEditingSelf"
+                    :disabled="form.processing"
                     class="w-full"
                   >
                     <Trash2 class="h-4 w-4 mr-2" />
                     Delete User
                   </Button>
 
-                  <div v-if="isEditingSelf" class="text-xs text-muted-foreground text-center">
-                    You cannot delete your own account
+                  <div v-if="isEditingSelf" class="text-xs text-muted-foreground text-center p-2 bg-muted/30 rounded">
+                    You cannot delete or impersonate your own account
                   </div>
                 </div>
               </div>
@@ -579,9 +966,9 @@ onMounted(() => {
     <AlertDialog v-model:open="saveDialogOpen">
       <AlertDialogContent>
         <AlertDialogHeader>
-          <AlertDialogTitle>Save Changes?</AlertDialogTitle>
+          <AlertDialogTitle>{{ isEditingSelf ? 'Update Profile?' : 'Save Changes?' }}</AlertDialogTitle>
           <AlertDialogDescription>
-            Are you sure you want to save the changes to this user account?
+            {{ isEditingSelf ? 'Are you sure you want to update your profile?' : 'Are you sure you want to save the changes to this user account?' }}
             <div class="mt-4 p-3 bg-muted rounded-lg space-y-2">
               <div class="flex justify-between">
                 <span class="font-medium">Name:</span>
@@ -607,6 +994,10 @@ onMounted(() => {
                 <span class="font-medium">Password:</span>
                 <span>{{ userSummary.hasPassword ? 'Changed' : 'Unchanged' }}</span>
               </div>
+              <div class="flex justify-between">
+                <span class="font-medium">Permissions:</span>
+                <span>{{ userSummary.permissions }} modules</span>
+              </div>
             </div>
           </AlertDialogDescription>
         </AlertDialogHeader>
@@ -615,7 +1006,7 @@ onMounted(() => {
             Continue Editing
           </AlertDialogCancel>
           <AlertDialogAction @click="confirmSave">
-            Save Changes
+            {{ isEditingSelf ? 'Update Profile' : 'Save Changes' }}
           </AlertDialogAction>
         </AlertDialogFooter>
       </AlertDialogContent>
@@ -631,7 +1022,7 @@ onMounted(() => {
               You have unsaved changes. If you cancel now, all your changes will be lost.
             </span>
             <span v-else>
-              This will cancel the editing and return you to the user management list.
+              {{ isEditingSelf ? 'This will cancel the profile editing and return you to dashboard.' : 'This will cancel the editing and return you to the user management list.' }}
             </span>
           </AlertDialogDescription>
         </AlertDialogHeader>
@@ -674,45 +1065,40 @@ onMounted(() => {
         </AlertDialogFooter>
       </AlertDialogContent>
     </AlertDialog>
+
+    <!-- Impersonate Confirmation Dialog -->
+    <AlertDialog v-model:open="impersonateDialogOpen">
+      <AlertDialogContent>
+        <AlertDialogHeader>
+          <AlertDialogTitle>Impersonate User?</AlertDialogTitle>
+          <AlertDialogDescription>
+            You are about to log in as "{{ user.name }}". You will be able to see and do everything as this user until you stop impersonating.
+            <div class="mt-3 p-3 bg-amber-50 border border-amber-200 rounded-lg">
+              <p class="text-sm text-amber-800 font-medium">Security Notice:</p>
+              <p class="text-sm text-amber-700 mt-1">
+                All actions performed while impersonating will be attributed to this user. 
+                Make sure to stop impersonating when you're done.
+              </p>
+            </div>
+          </AlertDialogDescription>
+        </AlertDialogHeader>
+        <AlertDialogFooter>
+          <AlertDialogCancel :disabled="impersonating" @click="impersonateDialogOpen = false">
+            Cancel
+          </AlertDialogCancel>
+          <AlertDialogAction 
+            @click="impersonateUser"
+            class="bg-amber-600 text-amber-50 hover:bg-amber-700"
+            :disabled="impersonating"
+          >
+            <div v-if="impersonating" class="flex items-center space-x-2">
+              <div class="animate-spin rounded-full h-3 w-3 border-b-2 border-white"></div>
+              <span>Impersonating...</span>
+            </div>
+            <span v-else>Impersonate User</span>
+          </AlertDialogAction>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
   </AppLayout>
 </template>
-
-<style scoped>
-.resize-vertical {
-  resize: vertical;
-}
-
-/* Custom scrollbar for textareas */
-textarea::-webkit-scrollbar {
-  width: 6px;
-}
-
-textarea::-webkit-scrollbar-track {
-  background: #f1f1f1;
-  border-radius: 3px;
-}
-
-textarea::-webkit-scrollbar-thumb {
-  background: #c1c1c1;
-  border-radius: 3px;
-}
-
-textarea::-webkit-scrollbar-thumb:hover {
-  background: #a8a8a8;
-}
-
-/* Dark mode support */
-@media (prefers-color-scheme: dark) {
-  textarea::-webkit-scrollbar-track {
-    background: #374151;
-  }
-
-  textarea::-webkit-scrollbar-thumb {
-    background: #6b7280;
-  }
-
-  textarea::-webkit-scrollbar-thumb:hover {
-    background: #9ca3af;
-  }
-}
-</style>

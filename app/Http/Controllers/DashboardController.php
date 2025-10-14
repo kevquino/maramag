@@ -17,10 +17,22 @@ class DashboardController extends Controller
      */
     public function index(): Response
     {
+        $user = auth()->user();
+        
+        // Redirect PIO Officer and PIO Staff directly to news management
+        if ($user->canManageNews() && !$user->isAdmin()) {
+            return redirect()->route('news.index');
+        }
+
+        // Check if user has dashboard permission or is admin
+        if (!$user->hasPermission('dashboard') && !$user->isAdmin()) {
+            abort(403, 'Unauthorized action. You do not have permission to access the dashboard.');
+        }
+
         $badgeCounts = [];
         
-        // Only calculate if user is authenticated
-        if (auth()->check()) {
+        // Only calculate if user is authenticated and has news permission
+        if (auth()->check() && auth()->user()->hasPermission('news')) {
             $badgeCounts = [
                 'news' => News::where('status', 'published')->count(),
                 'trash' => News::onlyTrashed()->count(),
@@ -37,6 +49,13 @@ class DashboardController extends Controller
      */
     public function stats(Request $request)
     {
+        $user = auth()->user();
+        
+        // Allow PIO Officer and PIO Staff to access stats if they have news permission
+        if (!$user->hasPermission('dashboard') && !$user->isAdmin() && !$user->canManageNews()) {
+            return response()->json(['error' => 'Unauthorized'], 403);
+        }
+
         $since = $request->get('since');
         
         // Focus only on News and Users statistics for now

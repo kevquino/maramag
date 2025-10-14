@@ -1,5 +1,4 @@
 <?php
-// database/seeders/UserSeeder.php
 
 namespace Database\Seeders;
 
@@ -11,47 +10,116 @@ class UserSeeder extends Seeder
 {
     public function run(): void
     {
-        // Create admin user
+        // Create Admin User
         User::create([
-            'name' => 'Admin User',
-            'email' => 'admin@example.com',
-            'password' => Hash::make('password'),
+            'name' => 'System Administrator',
+            'email' => 'admin@municipality.gov',
+            'password' => Hash::make('password123'),
             'role' => 'admin',
+            'office' => 'Mayor\'s Office',
             'is_active' => true,
+            'permissions' => [
+                'dashboard',
+                'news',
+                'bids_awards',
+                'full_disclosure',
+                'tourism',
+                'awards_recognition',
+                'sangguniang_bayan',
+                'ordinance_resolutions',
+                'user_management',
+                'activity_logs',
+                'trash',
+                'business_permit'
+            ],
             'email_verified_at' => now(),
         ]);
 
-        // Create PIO Officer
+        // Create PIO Officer with only news permission
         User::create([
             'name' => 'PIO Officer',
             'email' => 'pio.officer@example.com',
-            'password' => Hash::make('password'),
+            'password' => Hash::make('password123'),
             'role' => 'PIO Officer',
+            'office' => 'Public Information Office',
             'is_active' => true,
+            'permissions' => [
+                'news' // Only news permission - dashboard will be hidden
+            ],
             'email_verified_at' => now(),
         ]);
 
         // Create PIO Staff
         User::create([
             'name' => 'PIO Staff',
-            'email' => 'pio.staff@example.com',
-            'password' => Hash::make('password'),
+            'email' => 'pio.staff@municipality.gov',
+            'password' => Hash::make('password123'),
             'role' => 'PIO Staff',
+            'office' => 'Public Information Office',
             'is_active' => true,
+            'permissions' => [
+                'dashboard',
+                'news'
+            ],
             'email_verified_at' => now(),
         ]);
 
-        // Create regular user (no news access)
+        // Create Tourism Officer
+        User::create([
+            'name' => 'Tourism Officer',
+            'email' => 'tourism.officer@municipality.gov',
+            'password' => Hash::make('password123'),
+            'role' => 'user',
+            'office' => 'Tourism Office',
+            'is_active' => true,
+            'permissions' => [
+                'dashboard',
+                'tourism'
+            ],
+            'email_verified_at' => now(),
+        ]);
+
+        // Create Planning Officer (Full Disclosure)
+        User::create([
+            'name' => 'Planning Officer',
+            'email' => 'planning.officer@municipality.gov',
+            'password' => Hash::make('password123'),
+            'role' => 'user',
+            'office' => 'Municipal Planning and Development Office',
+            'is_active' => true,
+            'permissions' => [
+                'dashboard',
+                'full_disclosure'
+            ],
+            'email_verified_at' => now(),
+        ]);
+
+        // Create Regular User (Limited Access)
         User::create([
             'name' => 'Regular User',
-            'email' => 'user@example.com',
-            'password' => Hash::make('password'),
+            'email' => 'user@municipality.gov',
+            'password' => Hash::make('password123'),
             'role' => 'user',
+            'office' => 'Other',
             'is_active' => true,
+            'permissions' => [
+                'dashboard'
+            ],
             'email_verified_at' => now(),
         ]);
 
-        // Create additional test users if needed
-        // User::factory(10)->create();
+        // Create Inactive User
+        User::create([
+            'name' => 'Inactive User',
+            'email' => 'inactive@municipality.gov',
+            'password' => Hash::make('password123'),
+            'role' => 'user',
+            'office' => 'Other',
+            'is_active' => false,
+            'permissions' => [
+                'dashboard'
+            ],
+            'email_verified_at' => now(),
+        ]);
     }
 }

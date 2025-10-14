@@ -1,5 +1,4 @@
 <?php
-// app/Http/Controllers/UserManagementController.php
 
 namespace App\Http\Controllers;
 
@@ -53,6 +52,8 @@ class UserManagementController extends Controller
                 'active' => 'Active',
                 'inactive' => 'Inactive',
             ],
+            'permissionOptions' => User::getAvailablePermissions(),
+            'permissionGroups' => User::getPermissionGroups(),
         ]);
     }
 
@@ -69,6 +70,8 @@ class UserManagementController extends Controller
         return Inertia::render('UserManagement/Create', [
             'roleOptions' => User::getRoles(),
             'officeOptions' => User::getOffices(),
+            'permissionOptions' => User::getAvailablePermissions(),
+            'permissionGroups' => User::getPermissionGroups(),
         ]);
     }
 
@@ -89,9 +92,11 @@ class UserManagementController extends Controller
             'role' => ['required', 'string', Rule::in(array_keys(User::getRoles()))],
             'office' => ['required', 'string', Rule::in(array_keys(User::getOffices()))],
             'is_active' => 'boolean',
+            'permissions' => 'array',
+            'permissions.*' => ['string', Rule::in(array_keys(User::getAvailablePermissions()))],
         ]);
 
-        User::create([
+        $userData = [
             'name' => $validated['name'],
             'email' => $validated['email'],
             'password' => Hash::make($validated['password']),
@@ -99,7 +104,20 @@ class UserManagementController extends Controller
             'office' => $validated['office'],
             'is_active' => $validated['is_active'] ?? true,
             'last_login_at' => null,
-        ]);
+        ];
+
+        // Add permissions if provided, otherwise set default permissions
+        if (isset($validated['permissions'])) {
+            $userData['permissions'] = $validated['permissions'];
+        } else {
+            // Set default permissions based on role and office
+            $userData['permissions'] = User::getDefaultPermissions(
+                $validated['role'], 
+                $validated['office']
+            );
+        }
+
+        User::create($userData);
 
         return redirect()->route('user-management.index')
             ->with('success', 'User created successfully.');
@@ -119,6 +137,8 @@ class UserManagementController extends Controller
 
         return Inertia::render('UserManagement/Show', [
             'user' => $user,
+            'permissionOptions' => User::getAvailablePermissions(),
+            'permissionGroups' => User::getPermissionGroups(),
         ]);
     }
 
@@ -138,6 +158,8 @@ class UserManagementController extends Controller
             'user' => $user,
             'roleOptions' => User::getRoles(),
             'officeOptions' => User::getOffices(),
+            'permissionOptions' => User::getAvailablePermissions(),
+            'permissionGroups' => User::getPermissionGroups(),
         ]);
     }
 
@@ -160,6 +182,8 @@ class UserManagementController extends Controller
             'office' => ['required', 'string', Rule::in(array_keys(User::getOffices()))],
             'is_active' => 'boolean',
             'password' => 'nullable|string|min:8|confirmed',
+            'permissions' => 'array',
+            'permissions.*' => ['string', Rule::in(array_keys(User::getAvailablePermissions()))],
         ]);
 
         $updateData = [
@@ -169,6 +193,11 @@ class UserManagementController extends Controller
             'office' => $validated['office'],
             'is_active' => $validated['is_active'] ?? $user->is_active,
         ];
+
+        // Update permissions if provided (only for admin)
+        if (auth()->user()->isAdmin() && isset($validated['permissions'])) {
+            $updateData['permissions'] = $validated['permissions'];
+        }
 
         if (!empty($validated['password'])) {
             $updateData['password'] = Hash::make($validated['password']);

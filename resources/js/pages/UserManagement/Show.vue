@@ -3,10 +3,11 @@ import AppLayout from '@/layouts/AppLayout.vue';
 import { dashboard } from '@/routes';
 import { type BreadcrumbItem } from '@/types';
 import { Head, router, usePage } from '@inertiajs/vue3';
-import { ArrowLeft, Edit, User, Mail, Shield, Building, Calendar, CheckCircle, XCircle, Send, Trash2 } from 'lucide-vue-next';
+import { ArrowLeft, Edit, User, Mail, Shield, Building, Calendar, CheckCircle, XCircle, Send, Trash2, CheckSquare } from 'lucide-vue-next';
 import { computed, ref } from 'vue';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { toast } from 'vue-sonner';
 import {
   AlertDialog,
@@ -32,7 +33,9 @@ const props = defineProps<{
     last_login_at: string | null;
     created_at: string;
     updated_at: string;
+    permissions: string[];
   };
+  permissionOptions: Record<string, any>;
 }>();
 
 const page = usePage();
@@ -305,6 +308,51 @@ const isViewingSelf = computed(() => {
               </div>
             </div>
 
+            <!-- Permissions Card -->
+            <Card>
+              <CardHeader>
+                <CardTitle class="flex items-center gap-2">
+                  <CheckSquare class="h-5 w-5 text-blue-600" />
+                  Module Permissions
+                </CardTitle>
+                <CardDescription>
+                  Modules and pages this user can access
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+                  <div
+                    v-for="(permission, key) in permissionOptions"
+                    :key="key"
+                    class="flex items-center space-x-2 p-3 border rounded-lg"
+                    :class="user.permissions?.includes(key) ? 'bg-green-50 border-green-200' : 'bg-muted/30'"
+                  >
+                    <div 
+                      class="h-3 w-3 rounded-full flex items-center justify-center"
+                      :class="user.permissions?.includes(key) ? 'bg-green-500' : 'bg-gray-300'"
+                    >
+                      <CheckCircle 
+                        v-if="user.permissions?.includes(key)"
+                        class="h-2 w-2 text-white" 
+                      />
+                    </div>
+                    <div class="flex-1 min-w-0">
+                      <p class="text-sm font-medium">
+                        {{ permission.label }}
+                      </p>
+                      <p class="text-xs text-muted-foreground mt-1">
+                        {{ permission.description }}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+                <div v-if="!user.permissions || user.permissions.length === 0" class="text-center py-8 text-muted-foreground">
+                  <CheckSquare class="h-12 w-12 mx-auto mb-2 opacity-50" />
+                  <p>No permissions assigned</p>
+                </div>
+              </CardContent>
+            </Card>
+
             <!-- Account Activity & System Information -->
             <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
               <!-- Account Activity -->
@@ -447,6 +495,12 @@ const isViewingSelf = computed(() => {
                       {{ user.email_verified_at ? 'Complete' : 'Pending' }}
                     </span>
                   </div>
+                  <div class="flex justify-between items-center">
+                    <span class="text-sm text-muted-foreground">Permissions</span>
+                    <span class="text-sm font-medium">
+                      {{ user.permissions?.length || 0 }} modules
+                    </span>
+                  </div>
                 </div>
               </div>
             </div>
@@ -485,26 +539,3 @@ const isViewingSelf = computed(() => {
     </AlertDialog>
   </AppLayout>
 </template>
-
-<style scoped>
-/* Custom styling for better visual hierarchy */
-.bg-muted\/30 {
-  background-color: hsl(var(--muted) / 0.3);
-}
-
-.bg-green-50 {
-  background-color: hsl(142, 76%, 96%);
-}
-
-.border-green-200 {
-  border-color: hsl(142, 76%, 86%);
-}
-
-.bg-amber-50 {
-  background-color: hsl(38, 96%, 96%);
-}
-
-.border-amber-200 {
-  border-color: hsl(38, 96%, 86%);
-}
-</style>
