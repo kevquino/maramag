@@ -13,7 +13,7 @@ import {
 } from '@/components/ui/sidebar';
 import { dashboard } from '@/routes';
 import { type NavItem } from '@/types';
-import { Link } from '@inertiajs/vue3';
+import { Link, usePage } from '@inertiajs/vue3';
 import { 
     BookOpen, 
     Folder, 
@@ -30,18 +30,33 @@ import {
     Trash
 } from 'lucide-vue-next';
 import AppLogo from './AppLogo.vue';
+import { computed } from 'vue';
 
-const mainNavItems: NavItem[] = [
+const page = usePage();
+
+// Compute badge counts from page props with fallback
+const badgeCounts = computed(() => page.props.badgeCounts || {
+    news: 0,
+    trash: 0,
+});
+
+// Helper to show badge only if count > 0
+const showBadge = (count: number) => count > 0 ? count : undefined;
+
+const mainNavItems = computed<NavItem[]>(() => [
     {
         title: 'Dashboard',
         href: dashboard(),
         icon: LayoutGrid,
     },
-    // Main Menu Items
     {
         title: 'News',
         href: '/news',
         icon: Newspaper,
+        badge: showBadge(badgeCounts.value.news),
+        badgeVariant: 'default',
+        badgeShape: 'rounded',
+        badgeClass: 'bg-yellow-500 text-black shadow-sm'
     },
     {
         title: 'Bids & Awards',
@@ -63,9 +78,9 @@ const mainNavItems: NavItem[] = [
         href: '/awards-recognition',
         icon: Award,
     },
-];
+]);
 
-const businessPermitItems: NavItem[] = [
+const businessPermitItems = computed<NavItem[]>(() => [
     {
         title: 'Business Permit',
         href: '/business-permit',
@@ -81,10 +96,9 @@ const businessPermitItems: NavItem[] = [
         href: '/renewal-permit',
         icon: Briefcase,
     },
-];
+]);
 
-// Update the sanggunianItems array in AppSidebar.vue
-const sanggunianItems: NavItem[] = [
+const sanggunianItems = computed<NavItem[]>(() => [
     {
         title: 'Sangguniang Bayan',
         href: '/sangguniang-bayan',
@@ -95,9 +109,9 @@ const sanggunianItems: NavItem[] = [
         href: '/ordinance-resolutions',
         icon: FileText,
     },
-];
+]);
 
-const adminItems: NavItem[] = [
+const adminItems = computed<NavItem[]>(() => [
     {
         title: 'User Management',
         href: '/user-management',
@@ -112,8 +126,12 @@ const adminItems: NavItem[] = [
         title: 'Trash',
         href: '/trash',
         icon: Trash,
+        badge: showBadge(badgeCounts.value.trash),
+        badgeVariant: 'outline',
+        badgeShape: 'rounded',
+        badgeClass: 'border border-gray-200 bg-gray-50 text-gray-700 dark:bg-gray-800 dark:text-gray-300'
     },
-];
+]);
 
 const footerNavItems: NavItem[] = [
     {
@@ -144,22 +162,12 @@ const footerNavItems: NavItem[] = [
         </SidebarHeader>
 
         <SidebarContent>
-            <!-- All items in sequence with separators -->
             <NavMain :items="mainNavItems" />
-            
-            <!-- Separator after Awards & Recognition -->
             <div class="border-t border-gray-200 dark:border-gray-700 my-2 mx-4"></div>
-            
             <NavMain :items="businessPermitItems" />
-            
-            <!-- Separator after Renewal Permit -->
             <div class="border-t border-gray-200 dark:border-gray-700 my-2 mx-4"></div>
-            
             <NavMain :items="sanggunianItems" />
-            
-            <!-- Separator after Ordinance & Resolutions -->
             <div class="border-t border-gray-200 dark:border-gray-700 my-2 mx-4"></div>
-            
             <NavMain :items="adminItems" />
         </SidebarContent>
 

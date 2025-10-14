@@ -15,6 +15,10 @@ export interface NavItem {
     href: NonNullable<InertiaLinkProps['href']>;
     icon?: LucideIcon;
     isActive?: boolean;
+    badge?: string | number;
+    badgeVariant?: 'default' | 'secondary' | 'destructive' | 'outline' | 'success' | 'warning';
+    badgeClass?: string;
+    badgeShape?: 'auto' | 'circle' | 'rounded' | 'square';
 }
 
 export type AppPageProps<
@@ -24,6 +28,10 @@ export type AppPageProps<
     quote: { message: string; author: string };
     auth: Auth;
     sidebarOpen: boolean;
+    badgeCounts?: {
+        news: number;
+        trash: number;
+    };
 };
 
 export interface User {

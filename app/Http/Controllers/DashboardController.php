@@ -17,7 +17,19 @@ class DashboardController extends Controller
      */
     public function index(): Response
     {
-        return Inertia::render('Dashboard');
+        $badgeCounts = [];
+        
+        // Only calculate if user is authenticated
+        if (auth()->check()) {
+            $badgeCounts = [
+                'news' => News::where('status', 'published')->count(),
+                'trash' => News::onlyTrashed()->count(),
+            ];
+        }
+
+        return Inertia::render('Dashboard', [
+            'badgeCounts' => $badgeCounts,
+        ]);
     }
 
     /**
@@ -27,7 +39,7 @@ class DashboardController extends Controller
     {
         $since = $request->get('since');
         
-        // Focus only on News statistics for now
+        // Focus only on News and Users statistics for now
         $stats = [
             'news' => [
                 'total' => News::count(),
@@ -109,7 +121,7 @@ class DashboardController extends Controller
                     'id' => $activity->user->id ?? 1,
                     'name' => $activity->user->name ?? 'System',
                     'email' => $activity->user->email ?? 'system@example.com',
-                    'avatar' => null, // Your User model doesn't have avatar field
+                    'avatar' => null,
                 ],
                 'created_at' => $activity->created_at->toISOString(),
             ];
@@ -120,7 +132,7 @@ class DashboardController extends Controller
             $transformedActivities = $recentNews->take(3)->map(function($news) {
                 $authorName = $news->author->name ?? 'Unknown User';
                 return [
-                    'id' => $news->id + 1000, // Temporary ID
+                    'id' => $news->id + 1000,
                     'description' => "Created news article: {$news->title}",
                     'type' => 'news',
                     'action' => 'created',
@@ -169,6 +181,6 @@ class DashboardController extends Controller
             return 'published';
         }
         
-        return 'updated'; // default
+        return 'updated';
     }
 }
