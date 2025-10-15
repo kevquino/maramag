@@ -3,18 +3,27 @@
 namespace App\Http\Controllers;
 
 use App\Models\User;
+use App\Models\News;
+use App\Models\Activity;
+use App\Models\BidsAward;
+use App\Models\FullDisclosure;
+use App\Models\TourismPackage;
+use App\Models\AwardsRecognition;
+use App\Models\SangguniangBayanMember;
+use App\Models\OrdinanceResolution;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
 use Illuminate\Support\Facades\Hash;
 use Inertia\Inertia;
 use Illuminate\Http\RedirectResponse;
+use Inertia\Response;
 
 class UserManagementController extends Controller
 {
     /**
      * Display a listing of the resource.
      */
-    public function index(Request $request)
+    public function index(Request $request): Response
     {
         // Check if user is admin
         if (!auth()->user()->isAdmin()) {
@@ -43,6 +52,9 @@ class UserManagementController extends Controller
             ->paginate(10)
             ->withQueryString();
 
+        // Get badge counts for the sidebar/navigation
+        $badgeCounts = $this->getBadgeCounts(auth()->user());
+
         return Inertia::render('UserManagement/Index', [
             'users' => $users,
             'filters' => $filters,
@@ -54,24 +66,28 @@ class UserManagementController extends Controller
             ],
             'permissionOptions' => User::getAvailablePermissions(),
             'permissionGroups' => User::getPermissionGroups(),
+            'badgeCounts' => $badgeCounts,
         ]);
     }
 
     /**
      * Show the form for creating a new resource.
      */
-    public function create()
+    public function create(): Response
     {
         // Check if user is admin
         if (!auth()->user()->isAdmin()) {
             abort(403, 'Unauthorized action.');
         }
 
+        $badgeCounts = $this->getBadgeCounts(auth()->user());
+
         return Inertia::render('UserManagement/Create', [
             'roleOptions' => User::getRoles(),
             'officeOptions' => User::getOffices(),
             'permissionOptions' => User::getAvailablePermissions(),
             'permissionGroups' => User::getPermissionGroups(),
+            'badgeCounts' => $badgeCounts,
         ]);
     }
 
@@ -117,7 +133,22 @@ class UserManagementController extends Controller
             );
         }
 
-        User::create($userData);
+        $user = User::create($userData);
+
+        // Log activity
+        Activity::create([
+            'description' => "User created: {$user->name} ({$user->email})",
+            'type' => 'user_management',
+            'user_id' => auth()->id(),
+            'metadata' => [
+                'user_id' => $user->id,
+                'name' => $user->name,
+                'email' => $user->email,
+                'role' => $user->role,
+                'office' => $user->office,
+                'action' => 'created'
+            ]
+        ]);
 
         return redirect()->route('user-management.index')
             ->with('success', 'User created successfully.');
@@ -126,7 +157,7 @@ class UserManagementController extends Controller
     /**
      * Display the specified resource.
      */
-    public function show(string $id)
+    public function show(string $id): Response
     {
         $user = User::findOrFail($id);
         
@@ -135,17 +166,20 @@ class UserManagementController extends Controller
             abort(403, 'Unauthorized action.');
         }
 
+        $badgeCounts = $this->getBadgeCounts(auth()->user());
+
         return Inertia::render('UserManagement/Show', [
             'user' => $user,
             'permissionOptions' => User::getAvailablePermissions(),
             'permissionGroups' => User::getPermissionGroups(),
+            'badgeCounts' => $badgeCounts,
         ]);
     }
 
     /**
      * Show the form for editing the specified resource.
      */
-    public function edit(string $id)
+    public function edit(string $id): Response
     {
         $user = User::findOrFail($id);
         
@@ -154,12 +188,15 @@ class UserManagementController extends Controller
             abort(403, 'Unauthorized action.');
         }
 
+        $badgeCounts = $this->getBadgeCounts(auth()->user());
+
         return Inertia::render('UserManagement/Edit', [
             'user' => $user,
             'roleOptions' => User::getRoles(),
             'officeOptions' => User::getOffices(),
             'permissionOptions' => User::getAvailablePermissions(),
             'permissionGroups' => User::getPermissionGroups(),
+            'badgeCounts' => $badgeCounts,
         ]);
     }
 
@@ -205,6 +242,21 @@ class UserManagementController extends Controller
 
         $user->update($updateData);
 
+        // Log activity
+        Activity::create([
+            'description' => "User updated: {$user->name} ({$user->email})",
+            'type' => 'user_management',
+            'user_id' => auth()->id(),
+            'metadata' => [
+                'user_id' => $user->id,
+                'name' => $user->name,
+                'email' => $user->email,
+                'role' => $user->role,
+                'office' => $user->office,
+                'action' => 'updated'
+            ]
+        ]);
+
         return redirect()->route('user-management.index')
             ->with('success', 'User updated successfully.');
     }
@@ -227,7 +279,23 @@ class UserManagementController extends Controller
                 ->with('error', 'You cannot delete your own account.');
         }
 
+        $userName = $user->name;
+        $userEmail = $user->email;
+
         $user->delete();
+
+        // Log activity
+        Activity::create([
+            'description' => "User deleted: {$userName} ({$userEmail})",
+            'type' => 'user_management',
+            'user_id' => auth()->id(),
+            'metadata' => [
+                'user_id' => $user->id,
+                'name' => $userName,
+                'email' => $userEmail,
+                'action' => 'deleted'
+            ]
+        ]);
 
         return redirect()->route('user-management.index')
             ->with('success', 'User deleted successfully.');
@@ -257,6 +325,20 @@ class UserManagementController extends Controller
 
         $status = $user->is_active ? 'activated' : 'deactivated';
 
+        // Log activity
+        Activity::create([
+            'description' => "User {$status}: {$user->name} ({$user->email})",
+            'type' => 'user_management',
+            'user_id' => auth()->id(),
+            'metadata' => [
+                'user_id' => $user->id,
+                'name' => $user->name,
+                'email' => $user->email,
+                'action' => 'status_toggled',
+                'is_active' => $user->is_active
+            ]
+        ]);
+
         return redirect()->back()
             ->with('success', "User {$status} successfully.");
     }
@@ -282,7 +364,82 @@ class UserManagementController extends Controller
         // Send verification notification
         $user->sendEmailVerificationNotification();
 
+        // Log activity
+        Activity::create([
+            'description' => "Verification email resent: {$user->name} ({$user->email})",
+            'type' => 'user_management',
+            'user_id' => auth()->id(),
+            'metadata' => [
+                'user_id' => $user->id,
+                'name' => $user->name,
+                'email' => $user->email,
+                'action' => 'verification_resent'
+            ]
+        ]);
+
         return redirect()->back()
             ->with('success', 'Verification email sent successfully.');
+    }
+
+    /**
+     * Get badge counts based on user permissions
+     */
+    private function getBadgeCounts(User $user): array
+    {
+        $badgeCounts = [];
+
+        // Debug: Check user permissions
+        \Log::debug('UserManagementController - User permissions check', [
+            'user_id' => $user->id,
+            'is_admin' => $user->isAdmin(),
+        ]);
+
+        if ($user->hasPermission('news')) {
+            $badgeCounts['news'] = News::where('status', 'published')->count();
+            
+            // Get trash count - News model uses SoftDeletes
+            $trashCount = News::onlyTrashed()->count();
+            $badgeCounts['trash'] = $trashCount;
+        }
+
+        if ($user->hasPermission('bids_awards')) {
+            $badgeCounts['bids_awards'] = BidsAward::count();
+        }
+
+        if ($user->hasPermission('full_disclosure')) {
+            $badgeCounts['full_disclosure'] = FullDisclosure::count();
+        }
+
+        if ($user->hasPermission('tourism')) {
+            $badgeCounts['tourism'] = TourismPackage::count();
+        }
+
+        if ($user->hasPermission('awards_recognition')) {
+            $badgeCounts['awards_recognition'] = AwardsRecognition::count();
+        }
+
+        if ($user->hasPermission('sangguniang_bayan')) {
+            $badgeCounts['sangguniang_bayan'] = SangguniangBayanMember::count();
+        }
+
+        if ($user->hasPermission('ordinance_resolutions')) {
+            $badgeCounts['ordinance_resolutions'] = OrdinanceResolution::count();
+        }
+
+        if ($user->isAdmin()) {
+            $badgeCounts['users'] = User::count();
+            $badgeCounts['activity_logs'] = Activity::count();
+            
+            // Ensure admin also gets trash count even if they don't have explicit news permission
+            if (!isset($badgeCounts['trash'])) {
+                $trashCount = News::onlyTrashed()->count();
+                $badgeCounts['trash'] = $trashCount;
+            }
+        }
+
+        // Debug: Final badge counts
+        \Log::debug('UserManagementController - Final badge counts', $badgeCounts);
+
+        return $badgeCounts;
     }
 }

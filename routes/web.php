@@ -79,17 +79,19 @@ Route::middleware(['auth'])->group(function () {
     })->name('trash.index');
 
     // Business Permit routes
-    Route::get('/business-permit', function () {
-        return Inertia::render('BusinessPermit/Index');
-    })->name('business-permit.index');
-    
-    Route::get('/new-application', function () {
-        return Inertia::render('BusinessPermit/NewApplication');
-    })->name('new-application.index');
-    
-    Route::get('/renewal-permit', function () {
-        return Inertia::render('BusinessPermit/RenewalPermit');
-    })->name('renewal-permit.index');
+    Route::prefix('business-permit')->group(function () {
+        Route::get('/', function () {
+            return Inertia::render('BusinessPermit/Index');
+        })->name('business-permit.index');
+        
+        Route::get('/new-application', function () {
+            return Inertia::render('BusinessPermit/NewApplication');
+        })->name('business-permit.new-application');
+        
+        Route::get('/renewal-permit', function () {
+            return Inertia::render('BusinessPermit/RenewalPermit');
+        })->name('business-permit.renewal-permit');
+    });
 });
 
 // Public show routes - no authentication required for viewing
@@ -99,6 +101,7 @@ Route::get('/tourism/{tourism_package}', [TourismPackageController::class, 'show
 Route::get('/awards-recognition/{awards_recognition}', [AwardsRecognitionController::class, 'show'])->name('awards-recognition.show');
 Route::get('/sangguniang-bayan/{sangguniang_bayan}', [SangguniangBayanController::class, 'show'])->name('sangguniang-bayan.show');
 Route::get('/ordinance-resolutions/{ordinance_resolution}', [OrdinanceResolutionController::class, 'show'])->name('ordinance-resolutions.show');
+Route::get('/full-disclosure/{full_disclosure}', [FullDisclosureController::class, 'show'])->name('full-disclosure.show'); // Added missing public show route
 
 require __DIR__.'/settings.php';
 require __DIR__.'/auth.php';

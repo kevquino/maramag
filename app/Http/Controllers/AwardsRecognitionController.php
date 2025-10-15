@@ -3,16 +3,34 @@
 namespace App\Http\Controllers;
 
 use App\Models\AwardsRecognition;
+use App\Models\News;
+use App\Models\Activity;
+use App\Models\User;
+use App\Models\BidsAward;
+use App\Models\FullDisclosure;
+use App\Models\TourismPackage;
+use App\Models\SangguniangBayanMember;
+use App\Models\OrdinanceResolution;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\DB;
+use Inertia\Response;
 
 class AwardsRecognitionController extends Controller
 {
     // Display a listing of the awards
-    public function index(Request $request)
+    public function index(Request $request): Response
     {
+        $user = auth()->user();
+        
+        // Check if user has awards_recognition permission
+        if (!$user->hasPermission('awards_recognition') && !$user->isAdmin()) {
+            return Inertia::render('Unauthorized', [
+                'message' => 'You do not have permission to access awards & recognition management.'
+            ]);
+        }
+
         $query = AwardsRecognition::with('user')
             ->latest();
 
@@ -51,6 +69,9 @@ class AwardsRecognitionController extends Controller
 
         $filters = $request->only(['search', 'category', 'award_type', 'scope', 'status']);
 
+        // Get badge counts for the sidebar/navigation
+        $badgeCounts = $this->getBadgeCounts($user);
+
         return Inertia::render('AwardsRecognition/Index', [
             'awards' => $awards,
             'filters' => $filters,
@@ -59,23 +80,43 @@ class AwardsRecognitionController extends Controller
             'scopeOptions' => $this->getScopeOptions(),
             'recipientTypeOptions' => $this->getRecipientTypeOptions(),
             'statusOptions' => $this->getStatusOptions(),
+            'badgeCounts' => $badgeCounts,
         ]);
     }
 
     // Show the form for creating a new award
-    public function create()
+    public function create(): Response
     {
+        $user = auth()->user();
+        
+        // Check if user has awards_recognition permission
+        if (!$user->hasPermission('awards_recognition') && !$user->isAdmin()) {
+            return Inertia::render('Unauthorized', [
+                'message' => 'You do not have permission to create awards & recognition.'
+            ]);
+        }
+
+        $badgeCounts = $this->getBadgeCounts($user);
+
         return Inertia::render('AwardsRecognition/Create', [
             'categoryOptions' => $this->getCategoryOptions(),
             'awardTypeOptions' => $this->getAwardTypeOptions(),
             'scopeOptions' => $this->getScopeOptions(),
             'recipientTypeOptions' => $this->getRecipientTypeOptions(),
+            'badgeCounts' => $badgeCounts,
         ]);
     }
 
     // Store a newly created award
     public function store(Request $request)
     {
+        $user = auth()->user();
+        
+        // Check if user has awards_recognition permission
+        if (!$user->hasPermission('awards_recognition') && !$user->isAdmin()) {
+            return redirect()->route('awards-recognition.index')->with('error', 'You do not have permission to create awards & recognition.');
+        }
+
         $validated = $request->validate([
             'title' => 'required|string|max:255',
             'description' => 'nullable|string',
@@ -102,7 +143,7 @@ class AwardsRecognitionController extends Controller
             'is_active' => 'boolean',
         ]);
 
-        DB::transaction(function () use ($validated, $request) {
+        $award = DB::transaction(function () use ($validated, $request) {
             $award = new AwardsRecognition($validated);
             $award->user_id = auth()->id();
 
@@ -133,37 +174,83 @@ class AwardsRecognitionController extends Controller
             }
 
             $award->save();
+            return $award;
         });
+
+        // Log activity
+        Activity::create([
+            'description' => "Award created: {$award->title}",
+            'type' => 'awards_recognition',
+            'user_id' => auth()->id(),
+            'metadata' => [
+                'award_id' => $award->id,
+                'title' => $award->title,
+                'awarding_body' => $award->awarding_body,
+                'category' => $award->category,
+                'action' => 'created'
+            ]
+        ]);
 
         return redirect()->route('awards-recognition.index')
             ->with('success', 'Award created successfully.');
     }
 
     // Display the specified award
-    public function show(AwardsRecognition $awardsRecognition)
+    public function show(AwardsRecognition $awardsRecognition): Response
     {
+        $user = auth()->user();
+        
+        // Check if user has awards_recognition permission
+        if (!$user->hasPermission('awards_recognition') && !$user->isAdmin()) {
+            return Inertia::render('Unauthorized', [
+                'message' => 'You do not have permission to view awards & recognition.'
+            ]);
+        }
+
         $awardsRecognition->load('user');
+
+        $badgeCounts = $this->getBadgeCounts($user);
 
         return Inertia::render('AwardsRecognition/Show', [
             'award' => $awardsRecognition,
+            'badgeCounts' => $badgeCounts,
         ]);
     }
 
     // Show the form for editing the specified award
-    public function edit(AwardsRecognition $awardsRecognition)
+    public function edit(AwardsRecognition $awardsRecognition): Response
     {
+        $user = auth()->user();
+        
+        // Check if user has awards_recognition permission
+        if (!$user->hasPermission('awards_recognition') && !$user->isAdmin()) {
+            return Inertia::render('Unauthorized', [
+                'message' => 'You do not have permission to edit awards & recognition.'
+            ]);
+        }
+
+        $badgeCounts = $this->getBadgeCounts($user);
+
         return Inertia::render('AwardsRecognition/Edit', [
             'award' => $awardsRecognition,
             'categoryOptions' => $this->getCategoryOptions(),
             'awardTypeOptions' => $this->getAwardTypeOptions(),
             'scopeOptions' => $this->getScopeOptions(),
             'recipientTypeOptions' => $this->getRecipientTypeOptions(),
+            'badgeCounts' => $badgeCounts,
         ]);
     }
 
     // Update the specified award
     public function update(Request $request, AwardsRecognition $awardsRecognition)
     {
+        $user = auth()->user();
+        
+        // Check if user has awards_recognition permission
+        if (!$user->hasPermission('awards_recognition') && !$user->isAdmin()) {
+            return redirect()->route('awards-recognition.index')->with('error', 'You do not have permission to update awards & recognition.');
+        }
+
         $validated = $request->validate([
             'title' => 'required|string|max:255',
             'description' => 'nullable|string',
@@ -241,6 +328,20 @@ class AwardsRecognitionController extends Controller
             $awardsRecognition->save();
         });
 
+        // Log activity
+        Activity::create([
+            'description' => "Award updated: {$awardsRecognition->title}",
+            'type' => 'awards_recognition',
+            'user_id' => auth()->id(),
+            'metadata' => [
+                'award_id' => $awardsRecognition->id,
+                'title' => $awardsRecognition->title,
+                'awarding_body' => $awardsRecognition->awarding_body,
+                'category' => $awardsRecognition->category,
+                'action' => 'updated'
+            ]
+        ]);
+
         return redirect()->route('awards-recognition.index')
             ->with('success', 'Award updated successfully.');
     }
@@ -248,6 +349,16 @@ class AwardsRecognitionController extends Controller
     // Remove the specified award
     public function destroy(AwardsRecognition $awardsRecognition)
     {
+        $user = auth()->user();
+        
+        // Check if user has awards_recognition permission
+        if (!$user->hasPermission('awards_recognition') && !$user->isAdmin()) {
+            return redirect()->route('awards-recognition.index')->with('error', 'You do not have permission to delete awards & recognition.');
+        }
+
+        $awardTitle = $awardsRecognition->title;
+        $awardingBody = $awardsRecognition->awarding_body;
+
         DB::transaction(function () use ($awardsRecognition) {
             // Delete associated files
             if ($awardsRecognition->featured_image) {
@@ -269,6 +380,19 @@ class AwardsRecognitionController extends Controller
             $awardsRecognition->delete();
         });
 
+        // Log activity
+        Activity::create([
+            'description' => "Award deleted: {$awardTitle}",
+            'type' => 'awards_recognition',
+            'user_id' => auth()->id(),
+            'metadata' => [
+                'award_id' => $awardsRecognition->id,
+                'title' => $awardTitle,
+                'awarding_body' => $awardingBody,
+                'action' => 'deleted'
+            ]
+        ]);
+
         return redirect()->route('awards-recognition.index')
             ->with('success', 'Award deleted successfully.');
     }
@@ -276,11 +400,31 @@ class AwardsRecognitionController extends Controller
     // Toggle featured status
     public function toggleFeatured(AwardsRecognition $awardsRecognition)
     {
+        $user = auth()->user();
+        
+        // Check if user has awards_recognition permission
+        if (!$user->hasPermission('awards_recognition') && !$user->isAdmin()) {
+            return redirect()->route('awards-recognition.index')->with('error', 'You do not have permission to toggle featured status.');
+        }
+
         $awardsRecognition->update([
             'is_featured' => !$awardsRecognition->is_featured
         ]);
 
         $status = $awardsRecognition->is_featured ? 'featured' : 'unfeatured';
+
+        // Log activity
+        Activity::create([
+            'description' => "Award {$status}: {$awardsRecognition->title}",
+            'type' => 'awards_recognition',
+            'user_id' => auth()->id(),
+            'metadata' => [
+                'award_id' => $awardsRecognition->id,
+                'title' => $awardsRecognition->title,
+                'action' => 'featured_toggled',
+                'is_featured' => $awardsRecognition->is_featured
+            ]
+        ]);
 
         return redirect()->back()
             ->with('success', "Award {$status} successfully.");
@@ -289,14 +433,97 @@ class AwardsRecognitionController extends Controller
     // Toggle active status
     public function toggleStatus(AwardsRecognition $awardsRecognition)
     {
+        $user = auth()->user();
+        
+        // Check if user has awards_recognition permission
+        if (!$user->hasPermission('awards_recognition') && !$user->isAdmin()) {
+            return redirect()->route('awards-recognition.index')->with('error', 'You do not have permission to toggle status.');
+        }
+
         $awardsRecognition->update([
             'is_active' => !$awardsRecognition->is_active
         ]);
 
         $status = $awardsRecognition->is_active ? 'activated' : 'deactivated';
 
+        // Log activity
+        Activity::create([
+            'description' => "Award {$status}: {$awardsRecognition->title}",
+            'type' => 'awards_recognition',
+            'user_id' => auth()->id(),
+            'metadata' => [
+                'award_id' => $awardsRecognition->id,
+                'title' => $awardsRecognition->title,
+                'action' => 'status_toggled',
+                'is_active' => $awardsRecognition->is_active
+            ]
+        ]);
+
         return redirect()->back()
             ->with('success', "Award {$status} successfully.");
+    }
+
+    /**
+     * Get badge counts based on user permissions
+     */
+    private function getBadgeCounts(User $user): array
+    {
+        $badgeCounts = [];
+
+        // Debug: Check user permissions
+        \Log::debug('AwardsRecognitionController - User permissions check', [
+            'user_id' => $user->id,
+            'has_awards_recognition_permission' => $user->hasPermission('awards_recognition'),
+            'is_admin' => $user->isAdmin(),
+        ]);
+
+        if ($user->hasPermission('news')) {
+            $badgeCounts['news'] = News::where('status', 'published')->count();
+            
+            // Get trash count - News model uses SoftDeletes
+            $trashCount = News::onlyTrashed()->count();
+            $badgeCounts['trash'] = $trashCount;
+        }
+
+        if ($user->hasPermission('bids_awards')) {
+            $badgeCounts['bids_awards'] = BidsAward::count();
+        }
+
+        if ($user->hasPermission('full_disclosure')) {
+            $badgeCounts['full_disclosure'] = FullDisclosure::count();
+        }
+
+        if ($user->hasPermission('tourism')) {
+            $badgeCounts['tourism'] = TourismPackage::count();
+        }
+
+        if ($user->hasPermission('awards_recognition')) {
+            $badgeCounts['awards_recognition'] = AwardsRecognition::count();
+        }
+
+        if ($user->hasPermission('sangguniang_bayan')) {
+            $badgeCounts['sangguniang_bayan'] = SangguniangBayanMember::count();
+        }
+
+        if ($user->hasPermission('ordinance_resolutions')) {
+            $badgeCounts['ordinance_resolutions'] = OrdinanceResolution::count();
+        }
+
+        if ($user->isAdmin()) {
+            $badgeCounts['users'] = User::count();
+            $badgeCounts['activity_logs'] = Activity::count();
+            
+            // Ensure admin also gets trash count even if they don't have explicit news permission
+            if (!isset($badgeCounts['trash'])) {
+                $trashCount = News::onlyTrashed()->count();
+                $badgeCounts['trash'] = $trashCount;
+            }
+        }
+
+        // Debug: Final badge counts
+        \Log::debug('AwardsRecognitionController - Final badge counts', $badgeCounts);
+
+        return $badgeCounts;
     }
 
     // Helper methods for options

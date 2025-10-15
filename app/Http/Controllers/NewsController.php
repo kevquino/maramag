@@ -4,6 +4,13 @@ namespace App\Http\Controllers;
 
 use App\Models\News;
 use App\Models\Activity;
+use App\Models\User;
+use App\Models\BidsAward;
+use App\Models\FullDisclosure;
+use App\Models\TourismPackage;
+use App\Models\AwardsRecognition;
+use App\Models\SangguniangBayanMember;
+use App\Models\OrdinanceResolution;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
 use Inertia\Response;
@@ -16,6 +23,15 @@ class NewsController extends Controller
      */
     public function index(Request $request): Response
     {
+        $user = auth()->user();
+        
+        // Check if user has news permission
+        if (!$user->hasPermission('news') && !$user->isAdmin()) {
+            return Inertia::render('Unauthorized', [
+                'message' => 'You do not have permission to access news management.'
+            ]);
+        }
+
         $query = News::with('author')->latest();
 
         // Apply search filter
@@ -37,9 +53,13 @@ class NewsController extends Controller
 
         $news = $query->paginate(10);
 
+        // Get badge counts for the sidebar/navigation
+        $badgeCounts = $this->getBadgeCounts($user);
+
         return Inertia::render('News/Index', [
             'news' => $news,
             'filters' => $request->only(['search', 'status', 'category']),
+            'badgeCounts' => $badgeCounts,
         ]);
     }
 
@@ -48,7 +68,20 @@ class NewsController extends Controller
      */
     public function create(): Response
     {
-        return Inertia::render('News/Create');
+        $user = auth()->user();
+        
+        // Check if user has news permission
+        if (!$user->hasPermission('news') && !$user->isAdmin()) {
+            return Inertia::render('Unauthorized', [
+                'message' => 'You do not have permission to create news articles.'
+            ]);
+        }
+
+        $badgeCounts = $this->getBadgeCounts($user);
+
+        return Inertia::render('News/Create', [
+            'badgeCounts' => $badgeCounts,
+        ]);
     }
 
     /**
@@ -56,6 +89,13 @@ class NewsController extends Controller
      */
     public function store(Request $request)
     {
+        $user = auth()->user();
+        
+        // Check if user has news permission
+        if (!$user->hasPermission('news') && !$user->isAdmin()) {
+            return redirect()->route('news.index')->with('error', 'You do not have permission to create news articles.');
+        }
+
         $validated = $request->validate([
             'title' => 'required|string|max:255',
             'excerpt' => 'nullable|string|max:500',
@@ -106,8 +146,20 @@ class NewsController extends Controller
      */
     public function show(News $news): Response
     {
+        $user = auth()->user();
+        
+        // Check if user has news permission
+        if (!$user->hasPermission('news') && !$user->isAdmin()) {
+            return Inertia::render('Unauthorized', [
+                'message' => 'You do not have permission to view news articles.'
+            ]);
+        }
+
+        $badgeCounts = $this->getBadgeCounts($user);
+
         return Inertia::render('News/Show', [
             'news' => $news->load('author'),
+            'badgeCounts' => $badgeCounts,
         ]);
     }
 
@@ -116,8 +168,20 @@ class NewsController extends Controller
      */
     public function edit(News $news): Response
     {
+        $user = auth()->user();
+        
+        // Check if user has news permission
+        if (!$user->hasPermission('news') && !$user->isAdmin()) {
+            return Inertia::render('Unauthorized', [
+                'message' => 'You do not have permission to edit news articles.'
+            ]);
+        }
+
+        $badgeCounts = $this->getBadgeCounts($user);
+
         return Inertia::render('News/Edit', [
             'article' => $news->load('author'),
+            'badgeCounts' => $badgeCounts,
         ]);
     }
 
@@ -126,14 +190,21 @@ class NewsController extends Controller
      */
     public function update(Request $request, News $news)
     {
+        $user = auth()->user();
+        
+        // Check if user has news permission
+        if (!$user->hasPermission('news') && !$user->isAdmin()) {
+            return redirect()->route('news.index')->with('error', 'You do not have permission to update news articles.');
+        }
+
         $validated = $request->validate([
             'title' => 'required|string|max:255',
             'excerpt' => 'nullable|string|max:500',
             'content' => 'required|string',
             'category' => 'required|string',
             'status' => 'required|string|in:draft,published,archived',
-            'is_featured' => 'boolean', // Added this line
-            'published_at' => 'nullable|date', // Added this line
+            'is_featured' => 'boolean',
+            'published_at' => 'nullable|date',
             'image' => 'nullable|image|mimes:jpeg,png,jpg,gif,webp|max:10240',
             'remove_existing_image' => 'boolean',
         ]);
@@ -145,8 +216,8 @@ class NewsController extends Controller
             'content' => $validated['content'],
             'category' => $validated['category'],
             'status' => $validated['status'],
-            'is_featured' => $validated['is_featured'] ?? false, // Added this line
-            'published_at' => $validated['published_at'] ?? null, // Added this line
+            'is_featured' => $validated['is_featured'] ?? false,
+            'published_at' => $validated['published_at'] ?? null,
         ]);
 
         // Handle image upload/removal
@@ -187,6 +258,13 @@ class NewsController extends Controller
      */
     public function destroy(News $news)
     {
+        $user = auth()->user();
+        
+        // Check if user has news permission
+        if (!$user->hasPermission('news') && !$user->isAdmin()) {
+            return redirect()->route('news.index')->with('error', 'You do not have permission to delete news articles.');
+        }
+
         $newsTitle = $news->title;
         
         // Delete image if exists
@@ -216,6 +294,13 @@ class NewsController extends Controller
      */
     public function updateStatus(Request $request, News $news)
     {
+        $user = auth()->user();
+        
+        // Check if user has news permission
+        if (!$user->hasPermission('news') && !$user->isAdmin()) {
+            return back()->with('error', 'You do not have permission to update news status.');
+        }
+
         $validated = $request->validate([
             'status' => 'required|string|in:draft,published',
         ]);
@@ -243,6 +328,13 @@ class NewsController extends Controller
      */
     public function toggleFeatured(News $news)
     {
+        $user = auth()->user();
+        
+        // Check if user has news permission
+        if (!$user->hasPermission('news') && !$user->isAdmin()) {
+            return back()->with('error', 'You do not have permission to toggle featured status.');
+        }
+
         $news->update(['is_featured' => !$news->is_featured]);
 
         $status = $news->is_featured ? 'featured' : 'unfeatured';
@@ -261,5 +353,75 @@ class NewsController extends Controller
         ]);
 
         return back()->with('success', 'News featured status updated successfully.');
+    }
+
+    /**
+     * Get badge counts based on user permissions
+     */
+    private function getBadgeCounts(User $user): array
+    {
+        $badgeCounts = [];
+
+        // Debug: Check user permissions
+        \Log::debug('NewsController - User permissions check', [
+            'user_id' => $user->id,
+            'has_news_permission' => $user->hasPermission('news'),
+            'is_admin' => $user->isAdmin(),
+        ]);
+
+        if ($user->hasPermission('news')) {
+            $badgeCounts['news'] = News::where('status', 'published')->count();
+            
+            // Get trash count - News model uses SoftDeletes
+            $trashCount = News::onlyTrashed()->count();
+            $badgeCounts['trash'] = $trashCount;
+            
+            // Debug: Log trash count
+            \Log::debug('NewsController - News trash count', [
+                'trash_count' => $trashCount,
+                'news_count' => $badgeCounts['news'],
+            ]);
+        }
+
+        if ($user->hasPermission('bids_awards')) {
+            $badgeCounts['bids_awards'] = BidsAward::count();
+        }
+
+        if ($user->hasPermission('full_disclosure')) {
+            $badgeCounts['full_disclosure'] = FullDisclosure::count();
+        }
+
+        if ($user->hasPermission('tourism')) {
+            $badgeCounts['tourism'] = TourismPackage::count();
+        }
+
+        if ($user->hasPermission('awards_recognition')) {
+            $badgeCounts['awards_recognition'] = AwardsRecognition::count();
+        }
+
+        if ($user->hasPermission('sangguniang_bayan')) {
+            $badgeCounts['sangguniang_bayan'] = SangguniangBayanMember::count();
+        }
+
+        if ($user->hasPermission('ordinance_resolutions')) {
+            $badgeCounts['ordinance_resolutions'] = OrdinanceResolution::count();
+        }
+
+        if ($user->isAdmin()) {
+            $badgeCounts['users'] = User::count();
+            $badgeCounts['activity_logs'] = Activity::count();
+            
+            // Ensure admin also gets trash count even if they don't have explicit news permission
+            if (!isset($badgeCounts['trash'])) {
+                $trashCount = News::onlyTrashed()->count();
+                $badgeCounts['trash'] = $trashCount;
+                \Log::debug('NewsController - Admin trash count', ['trash_count' => $trashCount]);
+            }
+        }
+
+        // Debug: Final badge counts
+        \Log::debug('NewsController - Final badge counts', $badgeCounts);
+
+        return $badgeCounts;
     }
 }
