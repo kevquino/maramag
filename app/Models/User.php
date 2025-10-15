@@ -138,7 +138,9 @@ class User extends Authenticatable implements MustVerifyEmail
     }
 
     /**
+     * UNIVERSAL PERMISSION SYSTEM
      * Check if user has specific permission
+     * ONLY uses database permissions array - no role/office fallbacks
      */
     public function hasPermission(string $permission): bool
     {
@@ -147,17 +149,33 @@ class User extends Authenticatable implements MustVerifyEmail
             return true;
         }
 
+        // UNIVERSAL RULE: Only check database permissions array
         $permissions = $this->permissions ?? [];
+        
+        // Ensure permissions is always treated as array
+        if (is_string($permissions)) {
+            try {
+                $permissions = json_decode($permissions, true) ?? [];
+            } catch (\Exception $e) {
+                $permissions = [];
+            }
+        }
         
         return in_array($permission, $permissions);
     }
+
+    /**
+     * UNIVERSAL PERMISSION METHODS
+     * These methods now use the universal permission system
+     * No role/office fallbacks - only database permissions
+     */
 
     /**
      * Check if user can manage news
      */
     public function canManageNews(): bool
     {
-        return $this->hasPermission('news') || in_array($this->role, ['admin', 'PIO Officer', 'PIO Staff']);
+        return $this->hasPermission('news');
     }
 
     /**
@@ -165,7 +183,7 @@ class User extends Authenticatable implements MustVerifyEmail
      */
     public function canManageBidsAwards(): bool
     {
-        return $this->hasPermission('bids_awards') || $this->isAdmin();
+        return $this->hasPermission('bids_awards');
     }
 
     /**
@@ -173,7 +191,7 @@ class User extends Authenticatable implements MustVerifyEmail
      */
     public function canManageTourism(): bool
     {
-        return $this->hasPermission('tourism') || $this->isAdmin();
+        return $this->hasPermission('tourism');
     }
 
     /**
@@ -181,7 +199,7 @@ class User extends Authenticatable implements MustVerifyEmail
      */
     public function canManageAwardsRecognition(): bool
     {
-        return $this->hasPermission('awards_recognition') || $this->isAdmin();
+        return $this->hasPermission('awards_recognition');
     }
 
     /**
@@ -189,7 +207,7 @@ class User extends Authenticatable implements MustVerifyEmail
      */
     public function canManageSangguniangBayan(): bool
     {
-        return $this->hasPermission('sangguniang_bayan') || $this->isAdmin();
+        return $this->hasPermission('sangguniang_bayan');
     }
 
     /**
@@ -197,7 +215,7 @@ class User extends Authenticatable implements MustVerifyEmail
      */
     public function canManageFullDisclosure(): bool
     {
-        return $this->hasPermission('full_disclosure') || $this->isAdmin();
+        return $this->hasPermission('full_disclosure');
     }
 
     /**
@@ -205,7 +223,7 @@ class User extends Authenticatable implements MustVerifyEmail
      */
     public function canManageOrdinanceResolutions(): bool
     {
-        return $this->hasPermission('ordinance_resolutions') || $this->isAdmin();
+        return $this->hasPermission('ordinance_resolutions');
     }
 
     /**
@@ -213,7 +231,7 @@ class User extends Authenticatable implements MustVerifyEmail
      */
     public function canManageUsers(): bool
     {
-        return $this->hasPermission('user_management') || $this->isAdmin();
+        return $this->hasPermission('user_management');
     }
 
     /**
@@ -221,7 +239,7 @@ class User extends Authenticatable implements MustVerifyEmail
      */
     public function canViewActivityLogs(): bool
     {
-        return $this->hasPermission('activity_logs') || $this->isAdmin();
+        return $this->hasPermission('activity_logs');
     }
 
     /**
@@ -229,7 +247,7 @@ class User extends Authenticatable implements MustVerifyEmail
      */
     public function canManageTrash(): bool
     {
-        return $this->hasPermission('trash') || $this->isAdmin();
+        return $this->hasPermission('trash') || $this->hasPermission('news');
     }
 
     /**
@@ -237,7 +255,7 @@ class User extends Authenticatable implements MustVerifyEmail
      */
     public function canManageBusinessPermit(): bool
     {
-        return $this->hasPermission('business_permit') || $this->isAdmin();
+        return $this->hasPermission('business_permit');
     }
 
     /**
@@ -280,6 +298,15 @@ class User extends Authenticatable implements MustVerifyEmail
         $availablePermissions = self::getAvailablePermissions();
         $userPermissions = $this->permissions ?? [];
         
+        // Ensure permissions is always treated as array
+        if (is_string($userPermissions)) {
+            try {
+                $userPermissions = json_decode($userPermissions, true) ?? [];
+            } catch (\Exception $e) {
+                $userPermissions = [];
+            }
+        }
+        
         $permissionsWithLabels = [];
         foreach ($userPermissions as $permission) {
             if (isset($availablePermissions[$permission])) {
@@ -292,6 +319,7 @@ class User extends Authenticatable implements MustVerifyEmail
 
     /**
      * Get default permissions based on role and office
+     * This is only used when creating new users
      */
     public static function getDefaultPermissions(string $role, string $office): array
     {
@@ -386,6 +414,15 @@ class User extends Authenticatable implements MustVerifyEmail
 
         $userPermissions = $this->permissions ?? [];
         
+        // Ensure permissions is always treated as array
+        if (is_string($userPermissions)) {
+            try {
+                $userPermissions = json_decode($userPermissions, true) ?? [];
+            } catch (\Exception $e) {
+                $userPermissions = [];
+            }
+        }
+        
         return !empty(array_intersect($permissions, $userPermissions));
     }
 
@@ -400,6 +437,15 @@ class User extends Authenticatable implements MustVerifyEmail
 
         $userPermissions = $this->permissions ?? [];
         
+        // Ensure permissions is always treated as array
+        if (is_string($userPermissions)) {
+            try {
+                $userPermissions = json_decode($userPermissions, true) ?? [];
+            } catch (\Exception $e) {
+                $userPermissions = [];
+            }
+        }
+        
         return empty(array_diff($permissions, $userPermissions));
     }
 
@@ -409,6 +455,15 @@ class User extends Authenticatable implements MustVerifyEmail
     public function addPermission(string $permission): bool
     {
         $permissions = $this->permissions ?? [];
+        
+        // Ensure permissions is always treated as array
+        if (is_string($permissions)) {
+            try {
+                $permissions = json_decode($permissions, true) ?? [];
+            } catch (\Exception $e) {
+                $permissions = [];
+            }
+        }
         
         if (!in_array($permission, $permissions)) {
             $permissions[] = $permission;
@@ -425,6 +480,15 @@ class User extends Authenticatable implements MustVerifyEmail
     public function removePermission(string $permission): bool
     {
         $permissions = $this->permissions ?? [];
+        
+        // Ensure permissions is always treated as array
+        if (is_string($permissions)) {
+            try {
+                $permissions = json_decode($permissions, true) ?? [];
+            } catch (\Exception $e) {
+                $permissions = [];
+            }
+        }
         
         $key = array_search($permission, $permissions);
         if ($key !== false) {
@@ -481,6 +545,15 @@ class User extends Authenticatable implements MustVerifyEmail
     {
         $groups = self::getPermissionGroups();
         $userPermissions = $this->permissions ?? [];
+        
+        // Ensure permissions is always treated as array
+        if (is_string($userPermissions)) {
+            try {
+                $userPermissions = json_decode($userPermissions, true) ?? [];
+            } catch (\Exception $e) {
+                $userPermissions = [];
+            }
+        }
         
         $grouped = [];
         foreach ($groups as $groupKey => $group) {

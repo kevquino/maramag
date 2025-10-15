@@ -25,8 +25,8 @@ class NewsController extends Controller
     {
         $user = auth()->user();
         
-        // Check if user has news permission
-        if (!$user->hasPermission('news') && !$user->isAdmin()) {
+        // UNIVERSAL PERMISSION CHECK: Only check database permissions
+        if (!$user->hasPermission('news')) {
             return Inertia::render('Unauthorized', [
                 'message' => 'You do not have permission to access news management.'
             ]);
@@ -70,8 +70,8 @@ class NewsController extends Controller
     {
         $user = auth()->user();
         
-        // Check if user has news permission
-        if (!$user->hasPermission('news') && !$user->isAdmin()) {
+        // UNIVERSAL PERMISSION CHECK: Only check database permissions
+        if (!$user->hasPermission('news')) {
             return Inertia::render('Unauthorized', [
                 'message' => 'You do not have permission to create news articles.'
             ]);
@@ -91,8 +91,8 @@ class NewsController extends Controller
     {
         $user = auth()->user();
         
-        // Check if user has news permission
-        if (!$user->hasPermission('news') && !$user->isAdmin()) {
+        // UNIVERSAL PERMISSION CHECK: Only check database permissions
+        if (!$user->hasPermission('news')) {
             return redirect()->route('news.index')->with('error', 'You do not have permission to create news articles.');
         }
 
@@ -148,8 +148,8 @@ class NewsController extends Controller
     {
         $user = auth()->user();
         
-        // Check if user has news permission
-        if (!$user->hasPermission('news') && !$user->isAdmin()) {
+        // UNIVERSAL PERMISSION CHECK: Only check database permissions
+        if (!$user->hasPermission('news')) {
             return Inertia::render('Unauthorized', [
                 'message' => 'You do not have permission to view news articles.'
             ]);
@@ -170,8 +170,8 @@ class NewsController extends Controller
     {
         $user = auth()->user();
         
-        // Check if user has news permission
-        if (!$user->hasPermission('news') && !$user->isAdmin()) {
+        // UNIVERSAL PERMISSION CHECK: Only check database permissions
+        if (!$user->hasPermission('news')) {
             return Inertia::render('Unauthorized', [
                 'message' => 'You do not have permission to edit news articles.'
             ]);
@@ -192,8 +192,8 @@ class NewsController extends Controller
     {
         $user = auth()->user();
         
-        // Check if user has news permission
-        if (!$user->hasPermission('news') && !$user->isAdmin()) {
+        // UNIVERSAL PERMISSION CHECK: Only check database permissions
+        if (!$user->hasPermission('news')) {
             return redirect()->route('news.index')->with('error', 'You do not have permission to update news articles.');
         }
 
@@ -260,8 +260,8 @@ class NewsController extends Controller
     {
         $user = auth()->user();
         
-        // Check if user has news permission
-        if (!$user->hasPermission('news') && !$user->isAdmin()) {
+        // UNIVERSAL PERMISSION CHECK: Only check database permissions
+        if (!$user->hasPermission('news')) {
             return redirect()->route('news.index')->with('error', 'You do not have permission to delete news articles.');
         }
 
@@ -296,8 +296,8 @@ class NewsController extends Controller
     {
         $user = auth()->user();
         
-        // Check if user has news permission
-        if (!$user->hasPermission('news') && !$user->isAdmin()) {
+        // UNIVERSAL PERMISSION CHECK: Only check database permissions
+        if (!$user->hasPermission('news')) {
             return back()->with('error', 'You do not have permission to update news status.');
         }
 
@@ -330,8 +330,8 @@ class NewsController extends Controller
     {
         $user = auth()->user();
         
-        // Check if user has news permission
-        if (!$user->hasPermission('news') && !$user->isAdmin()) {
+        // UNIVERSAL PERMISSION CHECK: Only check database permissions
+        if (!$user->hasPermission('news')) {
             return back()->with('error', 'You do not have permission to toggle featured status.');
         }
 
@@ -362,25 +362,13 @@ class NewsController extends Controller
     {
         $badgeCounts = [];
 
-        // Debug: Check user permissions
-        \Log::debug('NewsController - User permissions check', [
-            'user_id' => $user->id,
-            'has_news_permission' => $user->hasPermission('news'),
-            'is_admin' => $user->isAdmin(),
-        ]);
-
+        // UNIVERSAL PERMISSION SYSTEM: Only check database permissions
         if ($user->hasPermission('news')) {
             $badgeCounts['news'] = News::where('status', 'published')->count();
             
             // Get trash count - News model uses SoftDeletes
             $trashCount = News::onlyTrashed()->count();
             $badgeCounts['trash'] = $trashCount;
-            
-            // Debug: Log trash count
-            \Log::debug('NewsController - News trash count', [
-                'trash_count' => $trashCount,
-                'news_count' => $badgeCounts['news'],
-            ]);
         }
 
         if ($user->hasPermission('bids_awards')) {
@@ -415,12 +403,8 @@ class NewsController extends Controller
             if (!isset($badgeCounts['trash'])) {
                 $trashCount = News::onlyTrashed()->count();
                 $badgeCounts['trash'] = $trashCount;
-                \Log::debug('NewsController - Admin trash count', ['trash_count' => $trashCount]);
             }
         }
-
-        // Debug: Final badge counts
-        \Log::debug('NewsController - Final badge counts', $badgeCounts);
 
         return $badgeCounts;
     }

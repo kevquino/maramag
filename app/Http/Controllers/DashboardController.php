@@ -25,19 +25,8 @@ class DashboardController extends Controller
     {
         $user = auth()->user();
         
-        // Check if user has dashboard permission or is admin
-        if (!$user->hasPermission('dashboard') && !$user->isAdmin()) {
-            // If user only has news permission, show a limited dashboard or redirect via frontend
-            if ($user->hasPermission('news')) {
-                // Instead of redirecting, return a different view or limited dashboard
-                return Inertia::render('News/Index'); // Redirect to news via frontend
-            }
-            
-            // Show unauthorized dashboard view
-            return Inertia::render('Unauthorized', [
-                'message' => 'You do not have permission to access the dashboard.'
-            ]);
-        }
+        // REMOVED: Permission check for dashboard - now accessible to all authenticated users
+        // All authenticated users can access the dashboard regardless of permissions
 
         $badgeCounts = [];
         
@@ -58,10 +47,8 @@ class DashboardController extends Controller
     {
         $user = auth()->user();
         
-        // Check if user has dashboard permission or is admin
-        if (!$user->hasPermission('dashboard') && !$user->isAdmin()) {
-            return response()->json(['error' => 'Unauthorized'], 403);
-        }
+        // REMOVED: Permission check for dashboard stats - now accessible to all authenticated users
+        // All authenticated users can access dashboard statistics
 
         $since = $request->get('since');
         

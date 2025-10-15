@@ -103,5 +103,6 @@ Route::get('/sangguniang-bayan/{sangguniang_bayan}', [SangguniangBayanController
 Route::get('/ordinance-resolutions/{ordinance_resolution}', [OrdinanceResolutionController::class, 'show'])->name('ordinance-resolutions.show');
 Route::get('/full-disclosure/{full_disclosure}', [FullDisclosureController::class, 'show'])->name('full-disclosure.show'); // Added missing public show route
 
+
 require __DIR__.'/settings.php';
 require __DIR__.'/auth.php';

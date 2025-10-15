@@ -68,17 +68,53 @@ const badgeCounts = computed(() => {
 // Helper to show badge only if count > 0
 const showBadge = (count: number) => count > 0 ? count : undefined;
 
-// Check if user has permission
+// Universal permission check - grants access based on database permissions array
 const hasPermission = (permission: string) => {
     const authUser = page.props.auth?.user as User;
-    if (!authUser) return false;
+    
+    if (!authUser) {
+        return false;
+    }
     
     // Admin has all permissions
-    if (authUser.role === 'admin') return true;
+    if (authUser.role === 'admin') {
+        return true;
+    }
+
+    // Universal permission system: Check database permissions array
+    const userPermissions = authUser.permissions;
     
-    // Check user permissions array
-    const userPermissions = authUser.permissions || [];
-    return userPermissions.includes(permission);
+    if (!userPermissions) {
+        return false;
+    }
+
+    let permissionsArray: string[] = [];
+
+    // Handle different permission formats from database
+    if (Array.isArray(userPermissions)) {
+        permissionsArray = userPermissions;
+    } else if (typeof userPermissions === 'string') {
+        try {
+            // Try to parse as JSON
+            const parsed = JSON.parse(userPermissions);
+            if (Array.isArray(parsed)) {
+                permissionsArray = parsed;
+            } else {
+                permissionsArray = [];
+            }
+        } catch (e) {
+            // If not JSON, try comma-separated
+            permissionsArray = (userPermissions as string).split(',').map((p: string) => p.trim());
+        }
+    } else {
+        return false;
+    }
+
+    // Clean permissions array (remove empty strings, etc.)
+    permissionsArray = permissionsArray.filter(p => p && typeof p === 'string');
+    
+    // UNIVERSAL RULE: If permission exists in database array, grant access
+    return permissionsArray.includes(permission);
 };
 
 // Check if user is admin
@@ -87,65 +123,75 @@ const isAdmin = computed(() => {
     return authUser?.role === 'admin';
 });
 
-const mainNavItems = computed<NavItem[]>(() => [
-    {
-        title: 'Dashboard',
-        href: dashboard(),
-        icon: LayoutGrid,
-        visible: hasPermission('dashboard') || isAdmin.value
-    },
-    {
-        title: 'News',
-        href: '/news',
-        icon: Newspaper,
-        badge: showBadge(badgeCounts.value.news),
-        badgeVariant: 'default' as const,
-        badgeShape: 'rounded' as const,
-        badgeClass: 'bg-yellow-500 text-black shadow-sm',
-        visible: hasPermission('news')
-    },
-    {
-        title: 'Bids & Awards',
-        href: '/bids-awards',
-        icon: Gavel,
-        badge: showBadge(badgeCounts.value.bids_awards),
-        badgeVariant: 'default' as const,
-        badgeShape: 'rounded' as const,
-        badgeClass: 'bg-blue-500 text-white shadow-sm',
-        visible: hasPermission('bids_awards')
-    },
-    {
-        title: 'Full Disclosure',
-        href: '/full-disclosure',
-        icon: Shield,
-        badge: showBadge(badgeCounts.value.full_disclosure),
-        badgeVariant: 'default' as const,
-        badgeShape: 'rounded' as const,
-        badgeClass: 'bg-green-500 text-white shadow-sm',
-        visible: hasPermission('full_disclosure')
-    },
-    {
-        title: 'Tourism',
-        href: '/tourism',
-        icon: MapPin,
-        badge: showBadge(badgeCounts.value.tourism),
-        badgeVariant: 'default' as const,
-        badgeShape: 'rounded' as const,
-        badgeClass: 'bg-purple-500 text-white shadow-sm',
-        visible: hasPermission('tourism')
-    },
-    {
-        title: 'Awards & Recognition',
-        href: '/awards-recognition',
-        icon: Award,
-        badge: showBadge(badgeCounts.value.awards_recognition),
-        badgeVariant: 'default' as const,
-        badgeShape: 'rounded' as const,
-        badgeClass: 'bg-orange-500 text-white shadow-sm',
-        visible: hasPermission('awards_recognition')
-    },
-]);
+// Check if user can manage trash (special case - requires news permission or admin)
+const canManageTrash = computed(() => {
+    return hasPermission('news') || isAdmin.value;
+});
 
+// Main navigation items - visibility based solely on database permissions
+const mainNavItems = computed<NavItem[]>(() => {
+    return [
+        {
+            title: 'Dashboard',
+            href: dashboard(),
+            icon: LayoutGrid,
+            // Dashboard is always visible to authenticated users
+            visible: true
+        },
+        {
+            title: 'News',
+            href: '/news',
+            icon: Newspaper,
+            badge: showBadge(badgeCounts.value.news),
+            badgeVariant: 'default' as const,
+            badgeShape: 'rounded' as const,
+            badgeClass: 'bg-yellow-500 text-black shadow-sm',
+            visible: hasPermission('news')
+        },
+        {
+            title: 'Bids & Awards',
+            href: '/bids-awards',
+            icon: Gavel,
+            badge: showBadge(badgeCounts.value.bids_awards),
+            badgeVariant: 'default' as const,
+            badgeShape: 'rounded' as const,
+            badgeClass: 'bg-blue-500 text-white shadow-sm',
+            visible: hasPermission('bids_awards')
+        },
+        {
+            title: 'Full Disclosure',
+            href: '/full-disclosure',
+            icon: Shield,
+            badge: showBadge(badgeCounts.value.full_disclosure),
+            badgeVariant: 'default' as const,
+            badgeShape: 'rounded' as const,
+            badgeClass: 'bg-green-500 text-white shadow-sm',
+            visible: hasPermission('full_disclosure')
+        },
+        {
+            title: 'Tourism',
+            href: '/tourism',
+            icon: MapPin,
+            badge: showBadge(badgeCounts.value.tourism),
+            badgeVariant: 'default' as const,
+            badgeShape: 'rounded' as const,
+            badgeClass: 'bg-purple-500 text-white shadow-sm',
+            visible: hasPermission('tourism')
+        },
+        {
+            title: 'Awards & Recognition',
+            href: '/awards-recognition',
+            icon: Award,
+            badge: showBadge(badgeCounts.value.awards_recognition),
+            badgeVariant: 'default' as const,
+            badgeShape: 'rounded' as const,
+            badgeClass: 'bg-orange-500 text-white shadow-sm',
+            visible: hasPermission('awards_recognition')
+        },
+    ];
+});
+
+// Business permit items
 const businessPermitItems = computed<NavItem[]>(() => [
     {
         title: 'Business Permit',
@@ -167,6 +213,7 @@ const businessPermitItems = computed<NavItem[]>(() => [
     },
 ]);
 
+// Sanggunian items
 const sanggunianItems = computed<NavItem[]>(() => [
     {
         title: 'Sangguniang Bayan',
@@ -190,6 +237,7 @@ const sanggunianItems = computed<NavItem[]>(() => [
     },
 ]);
 
+// Admin items - visibility based on database permissions or admin status
 const adminItems = computed<NavItem[]>(() => [
     {
         title: 'User Management',
@@ -219,11 +267,11 @@ const adminItems = computed<NavItem[]>(() => [
         badgeVariant: 'outline' as const,
         badgeShape: 'rounded' as const,
         badgeClass: 'border border-gray-200 bg-gray-50 text-gray-700 dark:bg-gray-800 dark:text-gray-300',
-        // FIX: Show trash to users with news permission OR admin
-        visible: hasPermission('news') || isAdmin.value
+        visible: canManageTrash.value
     },
 ]);
 
+// Footer items
 const footerNavItems: NavItem[] = [
     {
         title: 'Github Repo',
@@ -237,11 +285,22 @@ const footerNavItems: NavItem[] = [
     },
 ];
 
-// Filter visible items only
-const visibleMainNavItems = computed(() => mainNavItems.value.filter(item => item.visible !== false));
-const visibleBusinessPermitItems = computed(() => businessPermitItems.value.filter(item => item.visible !== false));
-const visibleSanggunianItems = computed(() => sanggunianItems.value.filter(item => item.visible !== false));
-const visibleAdminItems = computed(() => adminItems.value.filter(item => item.visible !== false));
+// Filter visible items
+const visibleMainNavItems = computed(() => {
+    return mainNavItems.value.filter(item => item.visible !== false);
+});
+
+const visibleBusinessPermitItems = computed(() => {
+    return businessPermitItems.value.filter(item => item.visible !== false);
+});
+
+const visibleSanggunianItems = computed(() => {
+    return sanggunianItems.value.filter(item => item.visible !== false);
+});
+
+const visibleAdminItems = computed(() => {
+    return adminItems.value.filter(item => item.visible !== false);
+});
 
 // Check if any navigation items are visible
 const hasVisibleNavigation = computed(() => {
@@ -288,6 +347,9 @@ const hasVisibleNavigation = computed(() => {
             <div class="px-4 py-8 text-center text-gray-500 dark:text-gray-400">
                 <p class="text-sm">No navigation items available.</p>
                 <p class="text-xs mt-1">Contact administrator for access.</p>
+                <p class="text-xs mt-1">User: {{ page.props.auth?.user?.email }}</p>
+                <p class="text-xs mt-1">Role: {{ page.props.auth?.user?.role }}</p>
+                <p class="text-xs mt-1">Permissions: {{ page.props.auth?.user?.permissions }}</p>
             </div>
         </SidebarContent>
 

@@ -25,8 +25,8 @@ class SangguniangBayanController extends Controller
     {
         $user = auth()->user();
         
-        // Check if user has sangguniang_bayan permission
-        if (!$user->hasPermission('sangguniang_bayan') && !$user->isAdmin()) {
+        // UNIVERSAL PERMISSION CHECK: Only check database permissions
+        if (!$user->hasPermission('sangguniang_bayan')) {
             return Inertia::render('Unauthorized', [
                 'message' => 'You do not have permission to access Sangguniang Bayan management.'
             ]);
@@ -83,8 +83,8 @@ class SangguniangBayanController extends Controller
     {
         $user = auth()->user();
         
-        // Check if user has sangguniang_bayan permission
-        if (!$user->hasPermission('sangguniang_bayan') && !$user->isAdmin()) {
+        // UNIVERSAL PERMISSION CHECK: Only check database permissions
+        if (!$user->hasPermission('sangguniang_bayan')) {
             return Inertia::render('Unauthorized', [
                 'message' => 'You do not have permission to create Sangguniang Bayan members.'
             ]);
@@ -105,8 +105,8 @@ class SangguniangBayanController extends Controller
     {
         $user = auth()->user();
         
-        // Check if user has sangguniang_bayan permission
-        if (!$user->hasPermission('sangguniang_bayan') && !$user->isAdmin()) {
+        // UNIVERSAL PERMISSION CHECK: Only check database permissions
+        if (!$user->hasPermission('sangguniang_bayan')) {
             return redirect()->route('sangguniang-bayan.index')->with('error', 'You do not have permission to create Sangguniang Bayan members.');
         }
 
@@ -158,8 +158,8 @@ class SangguniangBayanController extends Controller
     {
         $user = auth()->user();
         
-        // Check if user has sangguniang_bayan permission
-        if (!$user->hasPermission('sangguniang_bayan') && !$user->isAdmin()) {
+        // UNIVERSAL PERMISSION CHECK: Only check database permissions
+        if (!$user->hasPermission('sangguniang_bayan')) {
             return Inertia::render('Unauthorized', [
                 'message' => 'You do not have permission to view Sangguniang Bayan members.'
             ]);
@@ -180,8 +180,8 @@ class SangguniangBayanController extends Controller
     {
         $user = auth()->user();
         
-        // Check if user has sangguniang_bayan permission
-        if (!$user->hasPermission('sangguniang_bayan') && !$user->isAdmin()) {
+        // UNIVERSAL PERMISSION CHECK: Only check database permissions
+        if (!$user->hasPermission('sangguniang_bayan')) {
             return Inertia::render('Unauthorized', [
                 'message' => 'You do not have permission to edit Sangguniang Bayan members.'
             ]);
@@ -203,8 +203,8 @@ class SangguniangBayanController extends Controller
     {
         $user = auth()->user();
         
-        // Check if user has sangguniang_bayan permission
-        if (!$user->hasPermission('sangguniang_bayan') && !$user->isAdmin()) {
+        // UNIVERSAL PERMISSION CHECK: Only check database permissions
+        if (!$user->hasPermission('sangguniang_bayan')) {
             return redirect()->route('sangguniang-bayan.index')->with('error', 'You do not have permission to update Sangguniang Bayan members.');
         }
 
@@ -259,8 +259,8 @@ class SangguniangBayanController extends Controller
     {
         $user = auth()->user();
         
-        // Check if user has sangguniang_bayan permission
-        if (!$user->hasPermission('sangguniang_bayan') && !$user->isAdmin()) {
+        // UNIVERSAL PERMISSION CHECK: Only check database permissions
+        if (!$user->hasPermission('sangguniang_bayan')) {
             return redirect()->route('sangguniang-bayan.index')->with('error', 'You do not have permission to delete Sangguniang Bayan members.');
         }
 
@@ -298,8 +298,8 @@ class SangguniangBayanController extends Controller
     {
         $user = auth()->user();
         
-        // Check if user has sangguniang_bayan permission
-        if (!$user->hasPermission('sangguniang_bayan') && !$user->isAdmin()) {
+        // UNIVERSAL PERMISSION CHECK: Only check database permissions
+        if (!$user->hasPermission('sangguniang_bayan')) {
             return redirect()->route('sangguniang-bayan.index')->with('error', 'You do not have permission to toggle featured status.');
         }
 
@@ -332,8 +332,8 @@ class SangguniangBayanController extends Controller
     {
         $user = auth()->user();
         
-        // Check if user has sangguniang_bayan permission
-        if (!$user->hasPermission('sangguniang_bayan') && !$user->isAdmin()) {
+        // UNIVERSAL PERMISSION CHECK: Only check database permissions
+        if (!$user->hasPermission('sangguniang_bayan')) {
             return redirect()->route('sangguniang-bayan.index')->with('error', 'You do not have permission to toggle status.');
         }
 
@@ -366,8 +366,8 @@ class SangguniangBayanController extends Controller
     {
         $user = auth()->user();
         
-        // Check if user has sangguniang_bayan permission
-        if (!$user->hasPermission('sangguniang_bayan') && !$user->isAdmin()) {
+        // UNIVERSAL PERMISSION CHECK: Only check database permissions
+        if (!$user->hasPermission('sangguniang_bayan')) {
             return back()->with('error', 'You do not have permission to update member order.');
         }
 
@@ -428,13 +428,7 @@ class SangguniangBayanController extends Controller
     {
         $badgeCounts = [];
 
-        // Debug: Check user permissions
-        \Log::debug('SangguniangBayanController - User permissions check', [
-            'user_id' => $user->id,
-            'has_sangguniang_bayan_permission' => $user->hasPermission('sangguniang_bayan'),
-            'is_admin' => $user->isAdmin(),
-        ]);
-
+        // UNIVERSAL PERMISSION SYSTEM: Only check database permissions
         if ($user->hasPermission('news')) {
             $badgeCounts['news'] = News::where('status', 'published')->count();
             
@@ -477,9 +471,6 @@ class SangguniangBayanController extends Controller
                 $badgeCounts['trash'] = $trashCount;
             }
         }
-
-        // Debug: Final badge counts
-        \Log::debug('SangguniangBayanController - Final badge counts', $badgeCounts);
 
         return $badgeCounts;
     }
