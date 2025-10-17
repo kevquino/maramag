@@ -42,15 +42,14 @@ class User extends Authenticatable implements MustVerifyEmail
     }
 
     /**
-     * Available roles
+     * Available roles - Universal System
      */
     public static function getRoles(): array
     {
         return [
-            'admin' => 'Administrator',
-            'PIO Officer' => 'PIO Officer',
-            'PIO Staff' => 'PIO Staff',
-            'user' => 'Regular User',
+            'superadmin' => 'Super Administrator',
+            'admin' => 'Office Administrator',
+            'staff' => 'Office Staff',
         ];
     }
 
@@ -76,6 +75,7 @@ class User extends Authenticatable implements MustVerifyEmail
             'Municipal Disaster Risk Reduction and Management Office' => 'Municipal Disaster Risk Reduction and Management Office',
             'Bids and Awards Committee' => 'Bids and Awards Committee',
             'Tourism Office' => 'Tourism Office',
+            'Business Permit and Licensing Office' => 'Business Permit and Licensing Office',
             'Other' => 'Other',
         ];
     }
@@ -120,7 +120,7 @@ class User extends Authenticatable implements MustVerifyEmail
             ],
             'user_management' => [
                 'label' => 'User Management',
-                'description' => 'Manage system users (Admin only)'
+                'description' => 'Manage system users (Super Admin only)'
             ],
             'activity_logs' => [
                 'label' => 'Activity Logs',
@@ -134,22 +134,29 @@ class User extends Authenticatable implements MustVerifyEmail
                 'label' => 'Business Permit',
                 'description' => 'Manage business permit applications'
             ],
+            'new_application' => [
+                'label' => 'New Application',
+                'description' => 'Process new business permit applications'
+            ],
+            'renewal_permit' => [
+                'label' => 'Renewal Permit',
+                'description' => 'Process business permit renewals'
+            ],
         ];
     }
 
     /**
      * UNIVERSAL PERMISSION SYSTEM
      * Check if user has specific permission
-     * ONLY uses database permissions array - no role/office fallbacks
      */
     public function hasPermission(string $permission): bool
     {
-        // Admin has all permissions
-        if ($this->isAdmin()) {
+        // Superadmin has all permissions
+        if ($this->isSuperAdmin()) {
             return true;
         }
 
-        // UNIVERSAL RULE: Only check database permissions array
+        // Admin and Staff: Check database permissions array
         $permissions = $this->permissions ?? [];
         
         // Ensure permissions is always treated as array
@@ -166,8 +173,6 @@ class User extends Authenticatable implements MustVerifyEmail
 
     /**
      * UNIVERSAL PERMISSION METHODS
-     * These methods now use the universal permission system
-     * No role/office fallbacks - only database permissions
      */
 
     /**
@@ -231,7 +236,7 @@ class User extends Authenticatable implements MustVerifyEmail
      */
     public function canManageUsers(): bool
     {
-        return $this->hasPermission('user_management');
+        return $this->hasPermission('user_management') || $this->isSuperAdmin();
     }
 
     /**
@@ -239,7 +244,7 @@ class User extends Authenticatable implements MustVerifyEmail
      */
     public function canViewActivityLogs(): bool
     {
-        return $this->hasPermission('activity_logs');
+        return $this->hasPermission('activity_logs') || $this->isSuperAdmin();
     }
 
     /**
@@ -247,7 +252,7 @@ class User extends Authenticatable implements MustVerifyEmail
      */
     public function canManageTrash(): bool
     {
-        return $this->hasPermission('trash') || $this->hasPermission('news');
+        return $this->hasPermission('trash');
     }
 
     /**
@@ -259,6 +264,30 @@ class User extends Authenticatable implements MustVerifyEmail
     }
 
     /**
+     * Check if user can process new applications
+     */
+    public function canProcessNewApplications(): bool
+    {
+        return $this->hasPermission('new_application');
+    }
+
+    /**
+     * Check if user can process renewals
+     */
+    public function canProcessRenewals(): bool
+    {
+        return $this->hasPermission('renewal_permit');
+    }
+
+    /**
+     * Check if user is superadmin
+     */
+    public function isSuperAdmin(): bool
+    {
+        return $this->role === 'superadmin';
+    }
+
+    /**
      * Check if user is admin
      */
     public function isAdmin(): bool
@@ -267,19 +296,11 @@ class User extends Authenticatable implements MustVerifyEmail
     }
 
     /**
-     * Check if user is PIO Officer
+     * Check if user is staff
      */
-    public function isPioOfficer(): bool
+    public function isStaff(): bool
     {
-        return $this->role === 'PIO Officer';
-    }
-
-    /**
-     * Check if user is PIO Staff
-     */
-    public function isPioStaff(): bool
-    {
-        return $this->role === 'PIO Staff';
+        return $this->role === 'staff';
     }
 
     /**
@@ -298,7 +319,6 @@ class User extends Authenticatable implements MustVerifyEmail
         $availablePermissions = self::getAvailablePermissions();
         $userPermissions = $this->permissions ?? [];
         
-        // Ensure permissions is always treated as array
         if (is_string($userPermissions)) {
             try {
                 $userPermissions = json_decode($userPermissions, true) ?? [];
@@ -325,49 +345,46 @@ class User extends Authenticatable implements MustVerifyEmail
     {
         $defaultPermissions = ['dashboard']; // All users get dashboard access
 
-        // Role-based defaults
-        switch ($role) {
-            case 'admin':
-                $defaultPermissions = array_keys(self::getAvailablePermissions());
-                break;
-            case 'PIO Officer':
-                $defaultPermissions = array_merge($defaultPermissions, [
-                    'news',
-                    'bids_awards',
-                    'tourism',
-                    'awards_recognition'
-                ]);
-                break;
-            case 'PIO Staff':
-                $defaultPermissions = array_merge($defaultPermissions, [
-                    'news'
-                ]);
-                break;
-        }
-
-        // Office-based defaults
-        switch ($office) {
-            case 'Public Information Office':
-                $defaultPermissions = array_merge($defaultPermissions, ['news']);
-                break;
-            case 'Tourism Office':
-                $defaultPermissions = array_merge($defaultPermissions, ['tourism']);
-                break;
-            case 'Municipal Planning and Development Office':
-                $defaultPermissions = array_merge($defaultPermissions, ['full_disclosure']);
-                break;
-            case 'Sangguniang Bayan':
-                $defaultPermissions = array_merge($defaultPermissions, [
-                    'sangguniang_bayan',
-                    'ordinance_resolutions'
-                ]);
-                break;
-            case 'Bids and Awards Committee':
-                $defaultPermissions = array_merge($defaultPermissions, ['bids_awards']);
-                break;
-        }
+        // Office-based permissions
+        $officePermissions = self::getOfficeDefaultPermissions($office);
+        $defaultPermissions = array_merge($defaultPermissions, $officePermissions);
 
         return array_unique($defaultPermissions);
+    }
+
+    /**
+     * Get office-based default permissions
+     */
+    public static function getOfficeDefaultPermissions(string $office): array
+    {
+        $permissions = ['trash']; // All offices get trash access by default
+
+        switch ($office) {
+            case 'Public Information Office':
+                $permissions = array_merge($permissions, ['news']);
+                break;
+            case 'Bids and Awards Committee':
+                $permissions = array_merge($permissions, ['bids_awards']);
+                break;
+            case 'Municipal Planning and Development Office':
+                $permissions = array_merge($permissions, ['full_disclosure']);
+                break;
+            case 'Tourism Office':
+                $permissions = array_merge($permissions, ['tourism', 'full_disclosure']);
+                break;
+            case 'Mayor\'s Office':
+                $permissions = array_merge($permissions, ['news', 'tourism', 'awards_recognition']);
+                break;
+            case 'Business Permit and Licensing Office':
+                $permissions = array_merge($permissions, ['business_permit', 'new_application', 'renewal_permit']);
+                break;
+            case 'Vice Mayor\'s Office':
+            case 'Sangguniang Bayan':
+                $permissions = array_merge($permissions, ['sangguniang_bayan', 'ordinance_resolutions']);
+                break;
+        }
+
+        return array_unique($permissions);
     }
 
     /**
@@ -383,8 +400,10 @@ class User extends Authenticatable implements MustVerifyEmail
      */
     public function scopeWithPermission($query, string $permission)
     {
-        return $query->whereJsonContains('permissions', $permission)
-                    ->orWhere('role', 'admin');
+        return $query->where(function($q) use ($permission) {
+            $q->where('role', 'superadmin')
+              ->orWhereJsonContains('permissions', $permission);
+        });
     }
 
     /**
@@ -408,22 +427,12 @@ class User extends Authenticatable implements MustVerifyEmail
      */
     public function hasAnyPermission(array $permissions): bool
     {
-        if ($this->isAdmin()) {
-            return true;
-        }
-
-        $userPermissions = $this->permissions ?? [];
-        
-        // Ensure permissions is always treated as array
-        if (is_string($userPermissions)) {
-            try {
-                $userPermissions = json_decode($userPermissions, true) ?? [];
-            } catch (\Exception $e) {
-                $userPermissions = [];
+        foreach ($permissions as $permission) {
+            if ($this->hasPermission($permission)) {
+                return true;
             }
         }
-        
-        return !empty(array_intersect($permissions, $userPermissions));
+        return false;
     }
 
     /**
@@ -431,22 +440,12 @@ class User extends Authenticatable implements MustVerifyEmail
      */
     public function hasAllPermissions(array $permissions): bool
     {
-        if ($this->isAdmin()) {
-            return true;
-        }
-
-        $userPermissions = $this->permissions ?? [];
-        
-        // Ensure permissions is always treated as array
-        if (is_string($userPermissions)) {
-            try {
-                $userPermissions = json_decode($userPermissions, true) ?? [];
-            } catch (\Exception $e) {
-                $userPermissions = [];
+        foreach ($permissions as $permission) {
+            if (!$this->hasPermission($permission)) {
+                return false;
             }
         }
-        
-        return empty(array_diff($permissions, $userPermissions));
+        return true;
     }
 
     /**
@@ -454,9 +453,13 @@ class User extends Authenticatable implements MustVerifyEmail
      */
     public function addPermission(string $permission): bool
     {
+        // Superadmin doesn't need explicit permissions
+        if ($this->isSuperAdmin()) {
+            return true;
+        }
+
         $permissions = $this->permissions ?? [];
         
-        // Ensure permissions is always treated as array
         if (is_string($permissions)) {
             try {
                 $permissions = json_decode($permissions, true) ?? [];
@@ -479,9 +482,13 @@ class User extends Authenticatable implements MustVerifyEmail
      */
     public function removePermission(string $permission): bool
     {
+        // Cannot remove permissions from superadmin
+        if ($this->isSuperAdmin()) {
+            return false;
+        }
+
         $permissions = $this->permissions ?? [];
         
-        // Ensure permissions is always treated as array
         if (is_string($permissions)) {
             try {
                 $permissions = json_decode($permissions, true) ?? [];
@@ -493,7 +500,7 @@ class User extends Authenticatable implements MustVerifyEmail
         $key = array_search($permission, $permissions);
         if ($key !== false) {
             unset($permissions[$key]);
-            $this->permissions = array_values($permissions); // Reindex array
+            $this->permissions = array_values($permissions);
             return $this->save();
         }
         
@@ -505,6 +512,16 @@ class User extends Authenticatable implements MustVerifyEmail
      */
     public function syncPermissions(array $permissions): bool
     {
+        // Cannot change permissions for superadmin
+        if ($this->isSuperAdmin()) {
+            return false;
+        }
+
+        // Ensure dashboard is always included
+        if (!in_array('dashboard', $permissions)) {
+            $permissions[] = 'dashboard';
+        }
+
         $this->permissions = array_values(array_unique($permissions));
         return $this->save();
     }
@@ -529,7 +546,7 @@ class User extends Authenticatable implements MustVerifyEmail
             ],
             'services' => [
                 'label' => 'Services',
-                'permissions' => ['business_permit', 'sangguniang_bayan']
+                'permissions' => ['business_permit', 'new_application', 'renewal_permit', 'sangguniang_bayan']
             ],
             'general' => [
                 'label' => 'General',
@@ -546,7 +563,6 @@ class User extends Authenticatable implements MustVerifyEmail
         $groups = self::getPermissionGroups();
         $userPermissions = $this->permissions ?? [];
         
-        // Ensure permissions is always treated as array
         if (is_string($userPermissions)) {
             try {
                 $userPermissions = json_decode($userPermissions, true) ?? [];
@@ -563,7 +579,7 @@ class User extends Authenticatable implements MustVerifyEmail
             ];
             
             foreach ($group['permissions'] as $permission) {
-                if (in_array($permission, $userPermissions)) {
+                if (in_array($permission, $userPermissions) || $this->hasPermission($permission)) {
                     $grouped[$groupKey]['permissions'][$permission] = self::getAvailablePermissions()[$permission];
                 }
             }
@@ -589,11 +605,11 @@ class User extends Authenticatable implements MustVerifyEmail
     }
 
     /**
-     * Check if user can be impersonated (not admin and not self)
+     * Check if user can be impersonated (not superadmin and not self)
      */
     public function canBeImpersonated(): bool
     {
-        return !$this->isAdmin() && $this->id !== auth()->id();
+        return !$this->isSuperAdmin() && $this->id !== auth()->id();
     }
 
     /**
@@ -638,9 +654,9 @@ class User extends Authenticatable implements MustVerifyEmail
     public function getRoleBadgeVariant(): string
     {
         switch ($this->role) {
-            case 'admin': return 'destructive';
-            case 'PIO Officer': return 'default';
-            case 'PIO Staff': return 'secondary';
+            case 'superadmin': return 'destructive';
+            case 'admin': return 'default';
+            case 'staff': return 'secondary';
             default: return 'outline';
         }
     }
@@ -650,8 +666,13 @@ class User extends Authenticatable implements MustVerifyEmail
      */
     public function canEditUser(User $targetUser): bool
     {
-        // Admin can edit any user
-        if ($this->isAdmin()) {
+        // Superadmin can edit any user
+        if ($this->isSuperAdmin()) {
+            return true;
+        }
+
+        // Admin can edit users in their office (except superadmin)
+        if ($this->isAdmin() && $this->office === $targetUser->office && !$targetUser->isSuperAdmin()) {
             return true;
         }
 
@@ -664,8 +685,8 @@ class User extends Authenticatable implements MustVerifyEmail
      */
     public function canDeleteUser(User $targetUser): bool
     {
-        // Only admin can delete users
-        if (!$this->isAdmin()) {
+        // Only superadmin can delete users
+        if (!$this->isSuperAdmin()) {
             return false;
         }
 
@@ -678,13 +699,17 @@ class User extends Authenticatable implements MustVerifyEmail
      */
     public function canChangeUserStatus(User $targetUser): bool
     {
-        // Only admin can change status
-        if (!$this->isAdmin()) {
-            return false;
+        // Superadmin can change any user's status
+        if ($this->isSuperAdmin()) {
+            return true;
         }
 
-        // Cannot change your own status
-        return $this->id !== $targetUser->id;
+        // Admin can change status of users in their office (except superadmin)
+        if ($this->isAdmin() && $this->office === $targetUser->office && !$targetUser->isSuperAdmin()) {
+            return true;
+        }
+
+        return false;
     }
 
     /**
@@ -692,12 +717,20 @@ class User extends Authenticatable implements MustVerifyEmail
      */
     public function canImpersonateUser(User $targetUser): bool
     {
-        // Only admin can impersonate
-        if (!$this->isAdmin()) {
+        // Only superadmin can impersonate
+        if (!$this->isSuperAdmin()) {
             return false;
         }
 
-        // Cannot impersonate yourself or other admins
-        return $this->id !== $targetUser->id && !$targetUser->isAdmin();
+        // Cannot impersonate yourself or other superadmins
+        return $this->id !== $targetUser->id && !$targetUser->isSuperAdmin();
+    }
+
+    /**
+     * Get office-based permissions suggestions
+     */
+    public static function getOfficePermissionSuggestions(string $office): array
+    {
+        return self::getOfficeDefaultPermissions($office);
     }
 }

@@ -13,226 +13,108 @@ class UserSeeder extends Seeder
         // Create Super Administrator
         User::create([
             'name' => 'System Administrator',
-            'email' => 'admin@municipality.gov',
+            'email' => 'superadmin@municipality.gov',
             'phone' => '+639123456789',
             'position' => 'IT Administrator',
-            'role' => 'admin',
+            'role' => 'superadmin',
             'office' => 'Municipal Mayor\'s Office',
             'is_active' => true,
             'avatar' => null,
             'last_login_at' => null,
             'last_login_ip' => null,
             'login_count' => 0,
-            'permissions' => [
-                'dashboard',
-                'news',
-                'bids_awards',
-                'full_disclosure',
-                'tourism',
-                'awards_recognition',
-                'sangguniang_bayan',
-                'ordinance_resolutions',
-                'user_management',
-                'activity_logs',
-                'trash',
-                'business_permit'
-            ],
+            'permissions' => json_encode([]), // Superadmin doesn't need permissions
             'timezone' => 'Asia/Manila',
             'locale' => 'en',
             'email_verified_at' => now(),
             'password' => Hash::make('password123'),
         ]);
 
-        // Municipal Mayor's Office
+        // Public Information Office - Admin
         User::create([
-            'name' => 'Mayor\'s Office Admin',
-            'email' => 'mayor.admin@municipality.gov',
+            'name' => 'PIO Admin',
+            'email' => 'pio.admin@municipality.gov',
             'phone' => '+639123456780',
-            'position' => 'Executive Assistant',
+            'position' => 'Public Information Officer',
             'role' => 'admin',
-            'office' => 'Municipal Mayor\'s Office',
+            'office' => 'Public Information Office',
             'is_active' => true,
             'avatar' => null,
             'last_login_at' => null,
             'last_login_ip' => null,
             'login_count' => 0,
-            'permissions' => [
-                'dashboard',
-                'news',
-                'awards_recognition',
-                'activity_logs'
-            ],
+            'permissions' => json_encode(['dashboard', 'news', 'trash']),
             'timezone' => 'Asia/Manila',
             'locale' => 'en',
             'email_verified_at' => now(),
             'password' => Hash::make('password123'),
         ]);
 
+        // Public Information Office - Staff
         User::create([
-            'name' => 'Mayor\'s Office Staff',
-            'email' => 'mayor.staff@municipality.gov',
+            'name' => 'PIO Staff',
+            'email' => 'pio.staff@municipality.gov',
             'phone' => '+639123456781',
-            'position' => 'Administrative Aide',
-            'role' => 'user',
-            'office' => 'Municipal Mayor\'s Office',
+            'position' => 'Information Officer',
+            'role' => 'staff',
+            'office' => 'Public Information Office',
             'is_active' => true,
             'avatar' => null,
             'last_login_at' => null,
             'last_login_ip' => null,
             'login_count' => 0,
-            'permissions' => [
-                'dashboard',
-                'news'
-            ],
+            'permissions' => json_encode(['dashboard', 'news', 'trash']),
             'timezone' => 'Asia/Manila',
             'locale' => 'en',
             'email_verified_at' => now(),
             'password' => Hash::make('password123'),
         ]);
 
-        // Vice Mayor's Office
+        // Bids and Awards Committee - Admin
         User::create([
-            'name' => 'Vice Mayor\'s Office Admin',
-            'email' => 'vice.mayor.admin@municipality.gov',
+            'name' => 'BAC Admin',
+            'email' => 'bac.admin@municipality.gov',
             'phone' => '+639123456782',
-            'position' => 'Legislative Staff Head',
+            'position' => 'BAC Chairman',
             'role' => 'admin',
-            'office' => 'Vice Mayor\'s Office',
+            'office' => 'Bids and Awards Committee',
             'is_active' => true,
             'avatar' => null,
             'last_login_at' => null,
             'last_login_ip' => null,
             'login_count' => 0,
-            'permissions' => [
-                'dashboard',
-                'sangguniang_bayan',
-                'ordinance_resolutions'
-            ],
+            'permissions' => json_encode(['dashboard', 'bids_awards', 'trash']),
             'timezone' => 'Asia/Manila',
             'locale' => 'en',
             'email_verified_at' => now(),
             'password' => Hash::make('password123'),
         ]);
 
+        // Bids and Awards Committee - Staff
         User::create([
-            'name' => 'Vice Mayor\'s Office Staff',
-            'email' => 'vice.mayor.staff@municipality.gov',
+            'name' => 'BAC Staff',
+            'email' => 'bac.staff@municipality.gov',
             'phone' => '+639123456783',
-            'position' => 'Legislative Assistant',
-            'role' => 'user',
-            'office' => 'Vice Mayor\'s Office',
+            'position' => 'BAC Secretary',
+            'role' => 'staff',
+            'office' => 'Bids and Awards Committee',
             'is_active' => true,
             'avatar' => null,
             'last_login_at' => null,
             'last_login_ip' => null,
             'login_count' => 0,
-            'permissions' => [
-                'dashboard',
-                'sangguniang_bayan'
-            ],
+            'permissions' => json_encode(['dashboard', 'bids_awards', 'trash']),
             'timezone' => 'Asia/Manila',
             'locale' => 'en',
             'email_verified_at' => now(),
             'password' => Hash::make('password123'),
         ]);
 
-        // Office of the Secretary to the Sangguniang Bayan
-        User::create([
-            'name' => 'Sangguniang Bayan Secretary Admin',
-            'email' => 'sb.secretary.admin@municipality.gov',
-            'phone' => '+639123456784',
-            'position' => 'Secretary to the Sanggunian',
-            'role' => 'admin',
-            'office' => 'Office of the Secretary to the Sangguniang Bayan',
-            'is_active' => true,
-            'avatar' => null,
-            'last_login_at' => null,
-            'last_login_ip' => null,
-            'login_count' => 0,
-            'permissions' => [
-                'dashboard',
-                'sangguniang_bayan',
-                'ordinance_resolutions'
-            ],
-            'timezone' => 'Asia/Manila',
-            'locale' => 'en',
-            'email_verified_at' => now(),
-            'password' => Hash::make('password123'),
-        ]);
-
-        User::create([
-            'name' => 'Sangguniang Bayan Secretary Staff',
-            'email' => 'sb.secretary.staff@municipality.gov',
-            'phone' => '+639123456785',
-            'position' => 'Records Officer',
-            'role' => 'user',
-            'office' => 'Office of the Secretary to the Sangguniang Bayan',
-            'is_active' => true,
-            'avatar' => null,
-            'last_login_at' => null,
-            'last_login_ip' => null,
-            'login_count' => 0,
-            'permissions' => [
-                'dashboard',
-                'sangguniang_bayan'
-            ],
-            'timezone' => 'Asia/Manila',
-            'locale' => 'en',
-            'email_verified_at' => now(),
-            'password' => Hash::make('password123'),
-        ]);
-
-        // Municipal Administrator's Office
-        User::create([
-            'name' => 'Municipal Administrator Admin',
-            'email' => 'municipal.admin@municipality.gov',
-            'phone' => '+639123456786',
-            'position' => 'Municipal Administrator',
-            'role' => 'admin',
-            'office' => 'Municipal Administrator\'s Office',
-            'is_active' => true,
-            'avatar' => null,
-            'last_login_at' => null,
-            'last_login_ip' => null,
-            'login_count' => 0,
-            'permissions' => [
-                'dashboard',
-                'news',
-                'activity_logs'
-            ],
-            'timezone' => 'Asia/Manila',
-            'locale' => 'en',
-            'email_verified_at' => now(),
-            'password' => Hash::make('password123'),
-        ]);
-
-        User::create([
-            'name' => 'Municipal Administrator Staff',
-            'email' => 'municipal.staff@municipality.gov',
-            'phone' => '+639123456787',
-            'position' => 'Administrative Officer',
-            'role' => 'user',
-            'office' => 'Municipal Administrator\'s Office',
-            'is_active' => true,
-            'avatar' => null,
-            'last_login_at' => null,
-            'last_login_ip' => null,
-            'login_count' => 0,
-            'permissions' => [
-                'dashboard',
-                'news'
-            ],
-            'timezone' => 'Asia/Manila',
-            'locale' => 'en',
-            'email_verified_at' => now(),
-            'password' => Hash::make('password123'),
-        ]);
-
-        // Municipal Planning and Development Office
+        // Municipal Planning and Development Office - Admin
         User::create([
             'name' => 'MPDO Admin',
             'email' => 'mpdo.admin@municipality.gov',
-            'phone' => '+639123456788',
+            'phone' => '+639123456784',
             'position' => 'Planning Officer',
             'role' => 'admin',
             'office' => 'Municipal Planning and Development Office',
@@ -241,281 +123,227 @@ class UserSeeder extends Seeder
             'last_login_at' => null,
             'last_login_ip' => null,
             'login_count' => 0,
-            'permissions' => [
-                'dashboard',
-                'full_disclosure'
-            ],
+            'permissions' => json_encode(['dashboard', 'full_disclosure', 'trash']),
             'timezone' => 'Asia/Manila',
             'locale' => 'en',
             'email_verified_at' => now(),
             'password' => Hash::make('password123'),
         ]);
 
+        // Municipal Planning and Development Office - Staff
         User::create([
             'name' => 'MPDO Staff',
             'email' => 'mpdo.staff@municipality.gov',
-            'phone' => '+639123456789',
+            'phone' => '+639123456785',
             'position' => 'Planning Assistant',
-            'role' => 'user',
+            'role' => 'staff',
             'office' => 'Municipal Planning and Development Office',
             'is_active' => true,
             'avatar' => null,
             'last_login_at' => null,
             'last_login_ip' => null,
             'login_count' => 0,
-            'permissions' => [
-                'dashboard',
-                'full_disclosure'
-            ],
+            'permissions' => json_encode(['dashboard', 'full_disclosure', 'trash']),
             'timezone' => 'Asia/Manila',
             'locale' => 'en',
             'email_verified_at' => now(),
             'password' => Hash::make('password123'),
         ]);
 
-        // Municipal Engineer's Office
+        // Tourism Office - Admin
         User::create([
-            'name' => 'Engineer\'s Office Admin',
-            'email' => 'engineer.admin@municipality.gov',
+            'name' => 'Tourism Admin',
+            'email' => 'tourism.admin@municipality.gov',
+            'phone' => '+639123456786',
+            'position' => 'Tourism Officer',
+            'role' => 'admin',
+            'office' => 'Tourism Office',
+            'is_active' => true,
+            'avatar' => null,
+            'last_login_at' => null,
+            'last_login_ip' => null,
+            'login_count' => 0,
+            'permissions' => json_encode(['dashboard', 'tourism', 'full_disclosure', 'trash']),
+            'timezone' => 'Asia/Manila',
+            'locale' => 'en',
+            'email_verified_at' => now(),
+            'password' => Hash::make('password123'),
+        ]);
+
+        // Tourism Office - Staff
+        User::create([
+            'name' => 'Tourism Staff',
+            'email' => 'tourism.staff@municipality.gov',
+            'phone' => '+639123456787',
+            'position' => 'Tourism Assistant',
+            'role' => 'staff',
+            'office' => 'Tourism Office',
+            'is_active' => true,
+            'avatar' => null,
+            'last_login_at' => null,
+            'last_login_ip' => null,
+            'login_count' => 0,
+            'permissions' => json_encode(['dashboard', 'tourism', 'full_disclosure', 'trash']),
+            'timezone' => 'Asia/Manila',
+            'locale' => 'en',
+            'email_verified_at' => now(),
+            'password' => Hash::make('password123'),
+        ]);
+
+        // Mayor's Office - Admin
+        User::create([
+            'name' => 'Mayor\'s Office Admin',
+            'email' => 'mayor.admin@municipality.gov',
+            'phone' => '+639123456788',
+            'position' => 'Executive Assistant',
+            'role' => 'admin',
+            'office' => 'Mayor\'s Office',
+            'is_active' => true,
+            'avatar' => null,
+            'last_login_at' => null,
+            'last_login_ip' => null,
+            'login_count' => 0,
+            'permissions' => json_encode(['dashboard', 'news', 'tourism', 'awards_recognition', 'trash']),
+            'timezone' => 'Asia/Manila',
+            'locale' => 'en',
+            'email_verified_at' => now(),
+            'password' => Hash::make('password123'),
+        ]);
+
+        // Mayor's Office - Staff
+        User::create([
+            'name' => 'Mayor\'s Office Staff',
+            'email' => 'mayor.staff@municipality.gov',
+            'phone' => '+639123456789',
+            'position' => 'Administrative Aide',
+            'role' => 'staff',
+            'office' => 'Mayor\'s Office',
+            'is_active' => true,
+            'avatar' => null,
+            'last_login_at' => null,
+            'last_login_ip' => null,
+            'login_count' => 0,
+            'permissions' => json_encode(['dashboard', 'news', 'tourism', 'awards_recognition', 'trash']),
+            'timezone' => 'Asia/Manila',
+            'locale' => 'en',
+            'email_verified_at' => now(),
+            'password' => Hash::make('password123'),
+        ]);
+
+        // Business Permit and Licensing Office - Admin
+        User::create([
+            'name' => 'BPLO Admin',
+            'email' => 'bplo.admin@municipality.gov',
             'phone' => '+639123456790',
-            'position' => 'Municipal Engineer',
+            'position' => 'Business Permit Officer',
             'role' => 'admin',
-            'office' => 'Municipal Engineer\'s Office',
+            'office' => 'Business Permit and Licensing Office',
             'is_active' => true,
             'avatar' => null,
             'last_login_at' => null,
             'last_login_ip' => null,
             'login_count' => 0,
-            'permissions' => [
-                'dashboard',
-                'bids_awards'
-            ],
+            'permissions' => json_encode(['dashboard', 'business_permit', 'new_application', 'renewal_permit']),
             'timezone' => 'Asia/Manila',
             'locale' => 'en',
             'email_verified_at' => now(),
             'password' => Hash::make('password123'),
         ]);
 
+        // Business Permit and Licensing Office - Staff
         User::create([
-            'name' => 'Engineer\'s Office Staff',
-            'email' => 'engineer.staff@municipality.gov',
+            'name' => 'BPLO Staff',
+            'email' => 'bplo.staff@municipality.gov',
             'phone' => '+639123456791',
-            'position' => 'Engineering Assistant',
-            'role' => 'user',
-            'office' => 'Municipal Engineer\'s Office',
+            'position' => 'Permit Processor',
+            'role' => 'staff',
+            'office' => 'Business Permit and Licensing Office',
             'is_active' => true,
             'avatar' => null,
             'last_login_at' => null,
             'last_login_ip' => null,
             'login_count' => 0,
-            'permissions' => [
-                'dashboard',
-                'bids_awards'
-            ],
+            'permissions' => json_encode(['dashboard', 'business_permit', 'new_application', 'renewal_permit']),
             'timezone' => 'Asia/Manila',
             'locale' => 'en',
             'email_verified_at' => now(),
             'password' => Hash::make('password123'),
         ]);
 
-        // Office of the Building Official
+        // Vice Mayor's Office - Admin
         User::create([
-            'name' => 'Building Official Admin',
-            'email' => 'building.admin@municipality.gov',
+            'name' => 'Vice Mayor Admin',
+            'email' => 'vice.mayor.admin@municipality.gov',
             'phone' => '+639123456792',
-            'position' => 'Building Official',
+            'position' => 'Legislative Staff Head',
             'role' => 'admin',
-            'office' => 'Office of the Building Official',
+            'office' => 'Vice Mayor\'s Office',
             'is_active' => true,
             'avatar' => null,
             'last_login_at' => null,
             'last_login_ip' => null,
             'login_count' => 0,
-            'permissions' => [
-                'dashboard',
-                'business_permit'
-            ],
+            'permissions' => json_encode(['dashboard', 'sangguniang_bayan', 'ordinance_resolutions', 'trash']),
             'timezone' => 'Asia/Manila',
             'locale' => 'en',
             'email_verified_at' => now(),
             'password' => Hash::make('password123'),
         ]);
 
+        // Vice Mayor's Office - Staff
         User::create([
-            'name' => 'Building Official Staff',
-            'email' => 'building.staff@municipality.gov',
+            'name' => 'Vice Mayor Staff',
+            'email' => 'vice.mayor.staff@municipality.gov',
             'phone' => '+639123456793',
-            'position' => 'Building Inspector',
-            'role' => 'user',
-            'office' => 'Office of the Building Official',
+            'position' => 'Legislative Assistant',
+            'role' => 'staff',
+            'office' => 'Vice Mayor\'s Office',
             'is_active' => true,
             'avatar' => null,
             'last_login_at' => null,
             'last_login_ip' => null,
             'login_count' => 0,
-            'permissions' => [
-                'dashboard',
-                'business_permit'
-            ],
+            'permissions' => json_encode(['dashboard', 'sangguniang_bayan', 'ordinance_resolutions', 'trash']),
             'timezone' => 'Asia/Manila',
             'locale' => 'en',
             'email_verified_at' => now(),
             'password' => Hash::make('password123'),
         ]);
 
-        // General Services Office
+        // Sangguniang Bayan - Admin
         User::create([
-            'name' => 'GSO Admin',
-            'email' => 'gso.admin@municipality.gov',
+            'name' => 'SB Admin',
+            'email' => 'sb.admin@municipality.gov',
             'phone' => '+639123456794',
-            'position' => 'General Services Officer',
+            'position' => 'Secretary to the Sanggunian',
             'role' => 'admin',
-            'office' => 'General Services Office',
+            'office' => 'Sangguniang Bayan',
             'is_active' => true,
             'avatar' => null,
             'last_login_at' => null,
             'last_login_ip' => null,
             'login_count' => 0,
-            'permissions' => [
-                'dashboard',
-                'bids_awards'
-            ],
+            'permissions' => json_encode(['dashboard', 'sangguniang_bayan', 'ordinance_resolutions', 'trash']),
             'timezone' => 'Asia/Manila',
             'locale' => 'en',
             'email_verified_at' => now(),
             'password' => Hash::make('password123'),
         ]);
 
+        // Sangguniang Bayan - Staff
         User::create([
-            'name' => 'GSO Staff',
-            'email' => 'gso.staff@municipality.gov',
+            'name' => 'SB Staff',
+            'email' => 'sb.staff@municipality.gov',
             'phone' => '+639123456795',
-            'position' => 'Supply Officer',
-            'role' => 'user',
-            'office' => 'General Services Office',
+            'position' => 'Records Officer',
+            'role' => 'staff',
+            'office' => 'Sangguniang Bayan',
             'is_active' => true,
             'avatar' => null,
             'last_login_at' => null,
             'last_login_ip' => null,
             'login_count' => 0,
-            'permissions' => [
-                'dashboard',
-                'bids_awards'
-            ],
-            'timezone' => 'Asia/Manila',
-            'locale' => 'en',
-            'email_verified_at' => now(),
-            'password' => Hash::make('password123'),
-        ]);
-
-        // Human Resource Management Office
-        User::create([
-            'name' => 'HRMO Admin',
-            'email' => 'hrmo.admin@municipality.gov',
-            'phone' => '+639123456796',
-            'position' => 'HR Manager',
-            'role' => 'admin',
-            'office' => 'Human Resource Management Office',
-            'is_active' => true,
-            'avatar' => null,
-            'last_login_at' => null,
-            'last_login_ip' => null,
-            'login_count' => 0,
-            'permissions' => [
-                'dashboard',
-                'activity_logs'
-            ],
-            'timezone' => 'Asia/Manila',
-            'locale' => 'en',
-            'email_verified_at' => now(),
-            'password' => Hash::make('password123'),
-        ]);
-
-        User::create([
-            'name' => 'HRMO Staff',
-            'email' => 'hrmo.staff@municipality.gov',
-            'phone' => '+639123456797',
-            'position' => 'HR Assistant',
-            'role' => 'user',
-            'office' => 'Human Resource Management Office',
-            'is_active' => true,
-            'avatar' => null,
-            'last_login_at' => null,
-            'last_login_ip' => null,
-            'login_count' => 0,
-            'permissions' => [
-                'dashboard'
-            ],
-            'timezone' => 'Asia/Manila',
-            'locale' => 'en',
-            'email_verified_at' => now(),
-            'password' => Hash::make('password123'),
-        ]);
-
-        // Continue with other offices following the same pattern...
-        // [Rest of the offices would follow the same structure with appropriate positions]
-
-        // PIO Officer (Special Role)
-        User::create([
-            'name' => 'PIO Officer',
-            'email' => 'pio.officer@municipality.gov',
-            'phone' => '+639123456798',
-            'position' => 'Public Information Officer',
-            'role' => 'PIO Officer',
-            'office' => 'Public Information Office',
-            'is_active' => true,
-            'avatar' => null,
-            'last_login_at' => null,
-            'last_login_ip' => null,
-            'login_count' => 0,
-            'permissions' => [
-                'news' // Only news permission - dashboard will be hidden
-            ],
-            'timezone' => 'Asia/Manila',
-            'locale' => 'en',
-            'email_verified_at' => now(),
-            'password' => Hash::make('password123'),
-        ]);
-
-        // PIO Staff
-        User::create([
-            'name' => 'PIO Staff',
-            'email' => 'pio.staff@municipality.gov',
-            'phone' => '+639123456799',
-            'position' => 'Information Officer',
-            'role' => 'PIO Staff',
-            'office' => 'Public Information Office',
-            'is_active' => true,
-            'avatar' => null,
-            'last_login_at' => null,
-            'last_login_ip' => null,
-            'login_count' => 0,
-            'permissions' => [
-                'dashboard',
-                'news'
-            ],
-            'timezone' => 'Asia/Manila',
-            'locale' => 'en',
-            'email_verified_at' => now(),
-            'password' => Hash::make('password123'),
-        ]);
-
-        // Create Regular User (Limited Access)
-        User::create([
-            'name' => 'Regular User',
-            'email' => 'user@municipality.gov',
-            'phone' => '+639123456800',
-            'position' => 'Clerk',
-            'role' => 'user',
-            'office' => 'Other',
-            'is_active' => true,
-            'avatar' => null,
-            'last_login_at' => null,
-            'last_login_ip' => null,
-            'login_count' => 0,
-            'permissions' => [
-                'dashboard'
-            ],
+            'permissions' => json_encode(['dashboard', 'sangguniang_bayan', 'ordinance_resolutions', 'trash']),
             'timezone' => 'Asia/Manila',
             'locale' => 'en',
             'email_verified_at' => now(),
@@ -524,20 +352,18 @@ class UserSeeder extends Seeder
 
         // Create Inactive User
         User::create([
-            'name' => 'Inactive User',
-            'email' => 'inactive@municipality.gov',
-            'phone' => '+639123456801',
+            'name' => 'Inactive Staff',
+            'email' => 'inactive.staff@municipality.gov',
+            'phone' => '+639123456796',
             'position' => 'Former Employee',
-            'role' => 'user',
+            'role' => 'staff',
             'office' => 'Other',
             'is_active' => false,
             'avatar' => null,
             'last_login_at' => now()->subMonths(3),
             'last_login_ip' => '192.168.1.100',
             'login_count' => 15,
-            'permissions' => [
-                'dashboard'
-            ],
+            'permissions' => json_encode(['dashboard']),
             'timezone' => 'Asia/Manila',
             'locale' => 'en',
             'email_verified_at' => now()->subMonths(6),

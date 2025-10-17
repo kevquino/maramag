@@ -25,8 +25,8 @@ class UserManagementController extends Controller
      */
     public function index(Request $request): Response
     {
-        // Check if user is admin
-        if (!auth()->user()->isAdmin()) {
+        // Check if user has permission to manage users or is superadmin
+        if (!auth()->user()->canManageUsers() && !auth()->user()->isSuperAdmin()) {
             abort(403, 'Unauthorized action.');
         }
 
@@ -75,8 +75,8 @@ class UserManagementController extends Controller
      */
     public function create(): Response
     {
-        // Check if user is admin
-        if (!auth()->user()->isAdmin()) {
+        // Check if user has permission to manage users or is superadmin
+        if (!auth()->user()->canManageUsers() && !auth()->user()->isSuperAdmin()) {
             abort(403, 'Unauthorized action.');
         }
 
@@ -96,8 +96,8 @@ class UserManagementController extends Controller
      */
     public function store(Request $request): RedirectResponse
     {
-        // Check if user is admin
-        if (!auth()->user()->isAdmin()) {
+        // Check if user has permission to manage users or is superadmin
+        if (!auth()->user()->canManageUsers() && !auth()->user()->isSuperAdmin()) {
             abort(403, 'Unauthorized action.');
         }
 
@@ -161,8 +161,8 @@ class UserManagementController extends Controller
     {
         $user = User::findOrFail($id);
         
-        // Users can view their own profile, admins can view any
-        if (!auth()->user()->isAdmin() && auth()->id() !== $user->id) {
+        // Users can view their own profile, admins/superadmins can view any
+        if (!auth()->user()->canManageUsers() && !auth()->user()->isSuperAdmin() && auth()->id() !== $user->id) {
             abort(403, 'Unauthorized action.');
         }
 
@@ -183,8 +183,8 @@ class UserManagementController extends Controller
     {
         $user = User::findOrFail($id);
         
-        // Users can edit their own profile, admins can edit any
-        if (!auth()->user()->isAdmin() && auth()->id() !== $user->id) {
+        // Users can edit their own profile, admins/superadmins can edit any
+        if (!auth()->user()->canManageUsers() && !auth()->user()->isSuperAdmin() && auth()->id() !== $user->id) {
             abort(403, 'Unauthorized action.');
         }
 
@@ -207,8 +207,8 @@ class UserManagementController extends Controller
     {
         $user = User::findOrFail($id);
         
-        // Users can update their own profile, admins can update any
-        if (!auth()->user()->isAdmin() && auth()->id() !== $user->id) {
+        // Users can update their own profile, admins/superadmins can update any
+        if (!auth()->user()->canManageUsers() && !auth()->user()->isSuperAdmin() && auth()->id() !== $user->id) {
             abort(403, 'Unauthorized action.');
         }
 
@@ -231,8 +231,8 @@ class UserManagementController extends Controller
             'is_active' => $validated['is_active'] ?? $user->is_active,
         ];
 
-        // Update permissions if provided (only for admin)
-        if (auth()->user()->isAdmin() && isset($validated['permissions'])) {
+        // Update permissions if provided (only for admin/superadmin)
+        if ((auth()->user()->canManageUsers() || auth()->user()->isSuperAdmin()) && isset($validated['permissions'])) {
             $updateData['permissions'] = $validated['permissions'];
         }
 
@@ -268,8 +268,8 @@ class UserManagementController extends Controller
     {
         $user = User::findOrFail($id);
         
-        // Check if user is admin
-        if (!auth()->user()->isAdmin()) {
+        // Check if user has permission to manage users or is superadmin
+        if (!auth()->user()->canManageUsers() && !auth()->user()->isSuperAdmin()) {
             abort(403, 'Unauthorized action.');
         }
 
@@ -308,8 +308,8 @@ class UserManagementController extends Controller
     {
         $user = User::findOrFail($id);
         
-        // Check if user is admin
-        if (!auth()->user()->isAdmin()) {
+        // Check if user has permission to manage users or is superadmin
+        if (!auth()->user()->canManageUsers() && !auth()->user()->isSuperAdmin()) {
             abort(403, 'Unauthorized action.');
         }
 
@@ -350,8 +350,8 @@ class UserManagementController extends Controller
     {
         $user = User::findOrFail($id);
         
-        // Check if user is admin
-        if (!auth()->user()->isAdmin()) {
+        // Check if user has permission to manage users or is superadmin
+        if (!auth()->user()->canManageUsers() && !auth()->user()->isSuperAdmin()) {
             abort(403, 'Unauthorized action.');
         }
 
@@ -382,6 +382,80 @@ class UserManagementController extends Controller
     }
 
     /**
+     * Impersonate user
+     */
+    public function impersonate(string $id): RedirectResponse
+    {
+        $user = User::findOrFail($id);
+        
+        // Only superadmin can impersonate
+        if (!auth()->user()->isSuperAdmin()) {
+            abort(403, 'Unauthorized action.');
+        }
+
+        // Cannot impersonate yourself
+        if ($user->id === auth()->id()) {
+            return redirect()->back()
+                ->with('error', 'You cannot impersonate yourself.');
+        }
+
+        // Store original user ID in session
+        session()->put('impersonate.original_user_id', auth()->id());
+        
+        // Log in as the target user
+        auth()->login($user);
+
+        // Log activity
+        Activity::create([
+            'description' => "Started impersonating user: {$user->name} ({$user->email})",
+            'type' => 'user_management',
+            'user_id' => session()->get('impersonate.original_user_id'),
+            'metadata' => [
+                'user_id' => $user->id,
+                'name' => $user->name,
+                'email' => $user->email,
+                'action' => 'impersonate_started'
+            ]
+        ]);
+
+        return redirect()->route('dashboard')
+            ->with('success', 'Now impersonating ' . $user->name);
+    }
+
+    /**
+     * Stop impersonating
+     */
+    public function stopImpersonate(): RedirectResponse
+    {
+        if (!User::isImpersonating()) {
+            return redirect()->route('dashboard')
+                ->with('error', 'Not currently impersonating any user.');
+        }
+
+        $originalUserId = User::getOriginalUserId();
+        
+        if ($originalUserId) {
+            $originalUser = User::find($originalUserId);
+            auth()->login($originalUser);
+        }
+
+        // Log activity
+        Activity::create([
+            'description' => "Stopped impersonating user",
+            'type' => 'user_management',
+            'user_id' => $originalUserId,
+            'metadata' => [
+                'action' => 'impersonate_stopped'
+            ]
+        ]);
+
+        session()->forget('impersonate.original_user_id');
+
+        return redirect()->route('user-management.index')
+            ->with('success', 'Stopped impersonating user.');
+    }
+
+    /**
      * Get badge counts based on user permissions
      */
     private function getBadgeCounts(User $user): array
@@ -391,10 +465,13 @@ class UserManagementController extends Controller
         // Debug: Check user permissions
         \Log::debug('UserManagementController - User permissions check', [
             'user_id' => $user->id,
+            'is_superadmin' => $user->isSuperAdmin(),
             'is_admin' => $user->isAdmin(),
+            'permissions' => $user->permissions,
         ]);
 
-        if ($user->hasPermission('news')) {
+        // Superadmin and users with specific permissions get badge counts
+        if ($user->isSuperAdmin() || $user->hasPermission('news')) {
             $badgeCounts['news'] = News::where('status', 'published')->count();
             
             // Get trash count - News model uses SoftDeletes
@@ -402,39 +479,55 @@ class UserManagementController extends Controller
             $badgeCounts['trash'] = $trashCount;
         }
 
-        if ($user->hasPermission('bids_awards')) {
+        if ($user->isSuperAdmin() || $user->hasPermission('bids_awards')) {
             $badgeCounts['bids_awards'] = BidsAward::count();
         }
 
-        if ($user->hasPermission('full_disclosure')) {
+        if ($user->isSuperAdmin() || $user->hasPermission('full_disclosure')) {
             $badgeCounts['full_disclosure'] = FullDisclosure::count();
         }
 
-        if ($user->hasPermission('tourism')) {
+        if ($user->isSuperAdmin() || $user->hasPermission('tourism')) {
             $badgeCounts['tourism'] = TourismPackage::count();
         }
 
-        if ($user->hasPermission('awards_recognition')) {
+        if ($user->isSuperAdmin() || $user->hasPermission('awards_recognition')) {
             $badgeCounts['awards_recognition'] = AwardsRecognition::count();
         }
 
-        if ($user->hasPermission('sangguniang_bayan')) {
+        if ($user->isSuperAdmin() || $user->hasPermission('sangguniang_bayan')) {
             $badgeCounts['sangguniang_bayan'] = SangguniangBayanMember::count();
         }
 
-        if ($user->hasPermission('ordinance_resolutions')) {
+        if ($user->isSuperAdmin() || $user->hasPermission('ordinance_resolutions')) {
             $badgeCounts['ordinance_resolutions'] = OrdinanceResolution::count();
         }
 
-        if ($user->isAdmin()) {
+        if ($user->isSuperAdmin() || $user->hasPermission('user_management')) {
             $badgeCounts['users'] = User::count();
+        }
+
+        if ($user->isSuperAdmin() || $user->hasPermission('activity_logs')) {
             $badgeCounts['activity_logs'] = Activity::count();
+        }
+
+        // Ensure superadmin gets all badge counts even if they don't have explicit permissions
+        if ($user->isSuperAdmin()) {
+            // Make sure all badge counts are set
+            $allBadges = [
+                'news' => News::where('status', 'published')->count(),
+                'bids_awards' => BidsAward::count(),
+                'full_disclosure' => FullDisclosure::count(),
+                'tourism' => TourismPackage::count(),
+                'awards_recognition' => AwardsRecognition::count(),
+                'sangguniang_bayan' => SangguniangBayanMember::count(),
+                'ordinance_resolutions' => OrdinanceResolution::count(),
+                'users' => User::count(),
+                'activity_logs' => Activity::count(),
+                'trash' => News::onlyTrashed()->count(),
+            ];
             
-            // Ensure admin also gets trash count even if they don't have explicit news permission
-            if (!isset($badgeCounts['trash'])) {
-                $trashCount = News::onlyTrashed()->count();
-                $badgeCounts['trash'] = $trashCount;
-            }
+            $badgeCounts = array_merge($allBadges, $badgeCounts);
         }
 
         // Debug: Final badge counts

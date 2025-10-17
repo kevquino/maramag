@@ -76,8 +76,8 @@ const hasPermission = (permission: string) => {
         return false;
     }
     
-    // Admin has all permissions
-    if (authUser.role === 'admin') {
+    // Superadmin has all permissions
+    if (authUser.role === 'superadmin') {
         return true;
     }
 
@@ -117,15 +117,20 @@ const hasPermission = (permission: string) => {
     return permissionsArray.includes(permission);
 };
 
-// Check if user is admin
-const isAdmin = computed(() => {
+// Check if user is superadmin
+const isSuperAdmin = computed(() => {
     const authUser = page.props.auth?.user as User;
-    return authUser?.role === 'admin';
+    return authUser?.role === 'superadmin';
 });
 
-// Check if user can manage trash (special case - requires news permission or admin)
-const canManageTrash = computed(() => {
-    return hasPermission('news') || isAdmin.value;
+// Check if user can manage users (special case for superadmin)
+const canManageUsers = computed(() => {
+    return hasPermission('user_management') || isSuperAdmin.value;
+});
+
+// Check if user can view activity logs (special case for superadmin)
+const canViewActivityLogs = computed(() => {
+    return hasPermission('activity_logs') || isSuperAdmin.value;
 });
 
 // Main navigation items - visibility based solely on database permissions
@@ -203,13 +208,13 @@ const businessPermitItems = computed<NavItem[]>(() => [
         title: 'New Application',
         href: '/business-permit/new-application',
         icon: Briefcase,
-        visible: hasPermission('business_permit')
+        visible: hasPermission('new_application')
     },
     {
         title: 'Renewal Permit',
         href: '/business-permit/renewal-permit',
         icon: Briefcase,
-        visible: hasPermission('business_permit')
+        visible: hasPermission('renewal_permit')
     },
 ]);
 
@@ -237,7 +242,7 @@ const sanggunianItems = computed<NavItem[]>(() => [
     },
 ]);
 
-// Admin items - visibility based on database permissions or admin status
+// Admin items - visibility based on database permissions or superadmin status
 const adminItems = computed<NavItem[]>(() => [
     {
         title: 'User Management',
@@ -247,7 +252,7 @@ const adminItems = computed<NavItem[]>(() => [
         badgeVariant: 'default' as const,
         badgeShape: 'rounded' as const,
         badgeClass: 'bg-red-500 text-white shadow-sm',
-        visible: hasPermission('user_management') || isAdmin.value
+        visible: canManageUsers.value
     },
     {
         title: 'Activity Logs',
@@ -257,7 +262,7 @@ const adminItems = computed<NavItem[]>(() => [
         badgeVariant: 'default' as const,
         badgeShape: 'rounded' as const,
         badgeClass: 'bg-gray-500 text-white shadow-sm',
-        visible: hasPermission('activity_logs') || isAdmin.value
+        visible: canViewActivityLogs.value
     },
     {
         title: 'Trash',
@@ -267,7 +272,7 @@ const adminItems = computed<NavItem[]>(() => [
         badgeVariant: 'outline' as const,
         badgeShape: 'rounded' as const,
         badgeClass: 'border border-gray-200 bg-gray-50 text-gray-700 dark:bg-gray-800 dark:text-gray-300',
-        visible: canManageTrash.value
+        visible: hasPermission('trash')
     },
 ]);
 

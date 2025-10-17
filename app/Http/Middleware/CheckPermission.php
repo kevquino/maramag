@@ -19,8 +19,8 @@ class CheckPermission
             return redirect()->route('login');
         }
 
-        // Allow if user is admin (admins have all permissions)
-        if (auth()->user()->isAdmin()) {
+        // Allow if user is superadmin (superadmins have all permissions)
+        if (auth()->user()->isSuperAdmin()) {
             return $next($request);
         }
 

@@ -11,23 +11,25 @@ class NewsSeeder extends Seeder
 {
     public function run(): void
     {
-        // Get users from the database - with fallbacks
-        $admin = User::where('email', 'admin@municipality.gov')->first();
-        $pioOfficer = User::where('email', 'pio.officer@municipality.gov')->first();
+        // Get users from the database - with fallbacks using new role system
+        $superadmin = User::where('email', 'superadmin@municipality.gov')->first();
+        $pioAdmin = User::where('email', 'pio.admin@municipality.gov')->first();
         $pioStaff = User::where('email', 'pio.staff@municipality.gov')->first();
         $mayorAdmin = User::where('email', 'mayor.admin@municipality.gov')->first();
+        $tourismAdmin = User::where('email', 'tourism.admin@municipality.gov')->first();
+        $tourismStaff = User::where('email', 'tourism.staff@municipality.gov')->first();
         
-        // Fallback: if specific users aren't found, use admin as author
-        $tourismAdmin = User::where('email', 'tourism.admin@municipality.gov')->first() ?? $admin;
-        $healthAdmin = User::where('email', 'health.admin@municipality.gov')->first() ?? $admin;
+        // Fallback: if specific users aren't found, use superadmin as author
+        $viceMayorAdmin = User::where('email', 'vice.mayor.admin@municipality.gov')->first() ?? $superadmin;
+        $healthAdmin = User::where('email', 'health.admin@municipality.gov')->first() ?? $superadmin;
 
-        // If no users exist at all, create a fallback admin user
-        if (!$admin) {
-            $admin = User::create([
+        // If no users exist at all, create a fallback superadmin user
+        if (!$superadmin) {
+            $superadmin = User::create([
                 'name' => 'System Administrator',
-                'email' => 'admin@municipality.gov',
+                'email' => 'superadmin@municipality.gov',
                 'password' => bcrypt('password123'),
-                'role' => 'admin',
+                'role' => 'superadmin',
                 'office' => 'Municipal Mayor\'s Office',
                 'is_active' => true,
                 'email_verified_at' => now(),
@@ -41,8 +43,8 @@ class NewsSeeder extends Seeder
                 'excerpt' => 'The local government announces the start of three major infrastructure projects aimed at improving public facilities and road networks.',
                 'content' => $this->generateContent('Municipal Infrastructure Projects'),
                 'published_at' => Carbon::parse('2024-01-15'),
-                'author_id' => $mayorAdmin ? $mayorAdmin->id : $admin->id,
-                'category' => 'Infrastructure', // 12 chars
+                'author_id' => $mayorAdmin ? $mayorAdmin->id : $superadmin->id,
+                'category' => 'Infrastructure',
                 'status' => 'published',
                 'is_featured' => true,
                 'image_path' => null,
@@ -53,8 +55,8 @@ class NewsSeeder extends Seeder
                 'excerpt' => 'The Municipal Tourism Office has released the official schedule for the upcoming town fiesta celebration.',
                 'content' => $this->generateContent('Town Fiesta Celebration'),
                 'published_at' => Carbon::parse('2024-01-10'),
-                'author_id' => $tourismAdmin->id,
-                'category' => 'Tourism', // 7 chars
+                'author_id' => $tourismAdmin ? $tourismAdmin->id : $superadmin->id,
+                'category' => 'Tourism',
                 'status' => 'published',
                 'is_featured' => true,
                 'image_path' => null,
@@ -66,7 +68,7 @@ class NewsSeeder extends Seeder
                 'content' => $this->generateContent('Medical Mission for Seniors'),
                 'published_at' => Carbon::parse('2024-01-08'),
                 'author_id' => $healthAdmin->id,
-                'category' => 'Health', // 6 chars
+                'category' => 'Health',
                 'status' => 'published',
                 'is_featured' => false,
                 'image_path' => null,
@@ -77,8 +79,8 @@ class NewsSeeder extends Seeder
                 'excerpt' => 'The Sangguniang Bayan invites the public to a consultation meeting regarding the proposed environmental protection ordinance.',
                 'content' => $this->generateContent('Public Consultation on Ordinance'),
                 'published_at' => Carbon::parse('2024-01-05'),
-                'author_id' => $pioOfficer ? $pioOfficer->id : $admin->id,
-                'category' => 'Government', // 10 chars
+                'author_id' => $pioAdmin ? $pioAdmin->id : $superadmin->id,
+                'category' => 'Government',
                 'status' => 'published',
                 'is_featured' => false,
                 'image_path' => null,
@@ -89,8 +91,8 @@ class NewsSeeder extends Seeder
                 'excerpt' => 'The local government unit has been recognized for excellence in public service and transparency.',
                 'content' => $this->generateContent('Good Governance Award'),
                 'published_at' => Carbon::parse('2024-01-03'),
-                'author_id' => $admin->id,
-                'category' => 'Awards', // 6 chars
+                'author_id' => $superadmin->id,
+                'category' => 'Awards',
                 'status' => 'published',
                 'is_featured' => true,
                 'image_path' => null,
@@ -101,8 +103,8 @@ class NewsSeeder extends Seeder
                 'excerpt' => 'The Municipal Social Welfare Office is now accepting applications for the educational scholarship program.',
                 'content' => $this->generateContent('Scholarship Program'),
                 'published_at' => Carbon::parse('2024-01-01'),
-                'author_id' => $pioStaff ? $pioStaff->id : $admin->id,
-                'category' => 'Education', // 9 chars
+                'author_id' => $pioStaff ? $pioStaff->id : $superadmin->id,
+                'category' => 'Education',
                 'status' => 'published',
                 'is_featured' => false,
                 'image_path' => null,
@@ -113,7 +115,7 @@ class NewsSeeder extends Seeder
                 'excerpt' => 'Updates on the ongoing road rehabilitation project in the central business district.',
                 'content' => $this->generateContent('Road Rehabilitation Project'),
                 'published_at' => Carbon::parse('2023-12-28'),
-                'author_id' => $pioOfficer ? $pioOfficer->id : $admin->id,
+                'author_id' => $pioAdmin ? $pioAdmin->id : $superadmin->id,
                 'category' => 'Infrastructure',
                 'status' => 'published',
                 'is_featured' => false,
@@ -125,7 +127,7 @@ class NewsSeeder extends Seeder
                 'excerpt' => 'Construction of the modern public market facility has officially started.',
                 'content' => $this->generateContent('Public Market Construction'),
                 'published_at' => Carbon::parse('2023-12-25'),
-                'author_id' => $mayorAdmin ? $mayorAdmin->id : $admin->id,
+                'author_id' => $mayorAdmin ? $mayorAdmin->id : $superadmin->id,
                 'category' => 'Infrastructure',
                 'status' => 'published',
                 'is_featured' => true,
@@ -137,8 +139,8 @@ class NewsSeeder extends Seeder
                 'excerpt' => 'Complete schedule of Christmas events and activities organized by the municipality.',
                 'content' => $this->generateContent('Christmas Events Schedule'),
                 'published_at' => Carbon::parse('2023-12-20'),
-                'author_id' => $tourismAdmin->id,
-                'category' => 'Events', // 6 chars
+                'author_id' => $tourismStaff ? $tourismStaff->id : $superadmin->id,
+                'category' => 'Events',
                 'status' => 'archived',
                 'is_featured' => false,
                 'image_path' => null,
@@ -149,7 +151,7 @@ class NewsSeeder extends Seeder
                 'excerpt' => 'The municipality launches a major water system improvement project to ensure clean water supply.',
                 'content' => $this->generateContent('Water System Improvement'),
                 'published_at' => Carbon::parse('2023-12-15'),
-                'author_id' => $pioOfficer ? $pioOfficer->id : $admin->id,
+                'author_id' => $pioAdmin ? $pioAdmin->id : $superadmin->id,
                 'category' => 'Infrastructure',
                 'status' => 'published',
                 'is_featured' => false,
@@ -161,8 +163,8 @@ class NewsSeeder extends Seeder
                 'excerpt' => 'PESO announces the annual job fair with participation from major employers.',
                 'content' => $this->generateContent('Job Fair 2024'),
                 'published_at' => Carbon::parse('2023-12-10'),
-                'author_id' => $pioStaff ? $pioStaff->id : $admin->id,
-                'category' => 'Employment', // 9 chars
+                'author_id' => $pioStaff ? $pioStaff->id : $superadmin->id,
+                'category' => 'Employment',
                 'status' => 'published',
                 'is_featured' => false,
                 'image_path' => null,
@@ -174,7 +176,7 @@ class NewsSeeder extends Seeder
                 'content' => $this->generateContent('Clean-up Drive Results'),
                 'published_at' => Carbon::parse('2023-12-05'),
                 'author_id' => $healthAdmin->id,
-                'category' => 'Environment', // 10 chars
+                'category' => 'Environment',
                 'status' => 'published',
                 'is_featured' => false,
                 'image_path' => null,
@@ -185,8 +187,8 @@ class NewsSeeder extends Seeder
                 'excerpt' => 'The Municipal Treasurer announces extension of the tax amnesty program until end of month.',
                 'content' => $this->generateContent('Tax Amnesty Extension'),
                 'published_at' => Carbon::parse('2023-12-01'),
-                'author_id' => $pioOfficer ? $pioOfficer->id : $admin->id,
-                'category' => 'Finance', // 7 chars
+                'author_id' => $pioAdmin ? $pioAdmin->id : $superadmin->id,
+                'category' => 'Finance',
                 'status' => 'published',
                 'is_featured' => false,
                 'image_path' => null,
@@ -197,7 +199,7 @@ class NewsSeeder extends Seeder
                 'excerpt' => 'The modern public library facility is set to open next month with enhanced services.',
                 'content' => $this->generateContent('Public Library Opening'),
                 'published_at' => Carbon::parse('2023-11-28'),
-                'author_id' => $admin->id,
+                'author_id' => $superadmin->id,
                 'category' => 'Education',
                 'status' => 'draft',
                 'is_featured' => false,
@@ -209,8 +211,8 @@ class NewsSeeder extends Seeder
                 'excerpt' => 'The Municipal DRRMO releases schedule for community disaster preparedness training.',
                 'content' => $this->generateContent('Disaster Preparedness Training'),
                 'published_at' => Carbon::parse('2023-11-25'),
-                'author_id' => $pioStaff ? $pioStaff->id : $admin->id,
-                'category' => 'Safety', // 6 chars
+                'author_id' => $pioStaff ? $pioStaff->id : $superadmin->id,
+                'category' => 'Safety',
                 'status' => 'published',
                 'is_featured' => false,
                 'image_path' => null,
@@ -221,8 +223,8 @@ class NewsSeeder extends Seeder
                 'excerpt' => 'New support program for local farmers includes training and equipment assistance.',
                 'content' => $this->generateContent('Agricultural Support Program'),
                 'published_at' => Carbon::parse('2023-11-20'),
-                'author_id' => $pioOfficer ? $pioOfficer->id : $admin->id,
-                'category' => 'Agriculture', // 10 chars
+                'author_id' => $pioAdmin ? $pioAdmin->id : $superadmin->id,
+                'category' => 'Agriculture',
                 'status' => 'published',
                 'is_featured' => true,
                 'image_path' => null,
@@ -233,8 +235,8 @@ class NewsSeeder extends Seeder
                 'excerpt' => 'Implementation of new traffic management system to improve flow in urban areas.',
                 'content' => $this->generateContent('Traffic System Upgrade'),
                 'published_at' => Carbon::parse('2023-11-15'),
-                'author_id' => $mayorAdmin ? $mayorAdmin->id : $admin->id,
-                'category' => 'Transport', // 8 chars
+                'author_id' => $mayorAdmin ? $mayorAdmin->id : $superadmin->id,
+                'category' => 'Transport',
                 'status' => 'published',
                 'is_featured' => false,
                 'image_path' => null,
@@ -245,8 +247,8 @@ class NewsSeeder extends Seeder
                 'excerpt' => 'Month-long celebration of local culture and heritage features various activities.',
                 'content' => $this->generateContent('Cultural Heritage Celebration'),
                 'published_at' => Carbon::parse('2023-11-10'),
-                'author_id' => $tourismAdmin->id,
-                'category' => 'Culture', // 7 chars
+                'author_id' => $tourismAdmin ? $tourismAdmin->id : $superadmin->id,
+                'category' => 'Culture',
                 'status' => 'published',
                 'is_featured' => false,
                 'image_path' => null,
@@ -257,8 +259,8 @@ class NewsSeeder extends Seeder
                 'excerpt' => 'Reminder to all business owners about the upcoming permit renewal deadline.',
                 'content' => $this->generateContent('Business Permit Renewal'),
                 'published_at' => Carbon::parse('2023-11-05'),
-                'author_id' => $pioOfficer ? $pioOfficer->id : $admin->id,
-                'category' => 'Business', // 8 chars
+                'author_id' => $pioAdmin ? $pioAdmin->id : $superadmin->id,
+                'category' => 'Business',
                 'status' => 'published',
                 'is_featured' => false,
                 'image_path' => null,
@@ -269,8 +271,8 @@ class NewsSeeder extends Seeder
                 'excerpt' => 'The newly renovated municipal sports complex is now open to the public.',
                 'content' => $this->generateContent('Sports Complex Renovation'),
                 'published_at' => Carbon::parse('2023-11-01'),
-                'author_id' => $admin->id,
-                'category' => 'Sports', // 6 chars
+                'author_id' => $superadmin->id,
+                'category' => 'Sports',
                 'status' => 'published',
                 'is_featured' => true,
                 'image_path' => null,
