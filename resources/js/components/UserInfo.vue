@@ -15,15 +15,25 @@ const props = withDefaults(defineProps<Props>(), {
 
 const { getInitials } = useInitials();
 
-// Compute whether we should show the avatar image
-const showAvatar = computed(
-    () => props.user.avatar && props.user.avatar !== '',
-);
+const showAvatar = computed(() => {
+    return props.user.avatar && props.user.avatar.startsWith('/images/avatars/');
+});
+
+const avatarUrl = computed(() => {
+    return showAvatar.value ? props.user.avatar! : '';
+});
+
+console.log('🔍 UserInfo Debug:', {
+    hasUserAvatar: !!props.user.avatar,
+    userAvatar: props.user.avatar,
+    showAvatar: showAvatar.value,
+    avatarUrl: avatarUrl.value
+});
 </script>
 
 <template>
     <Avatar class="h-8 w-8 overflow-hidden rounded-lg">
-        <AvatarImage v-if="showAvatar" :src="user.avatar!" :alt="user.name" />
+        <AvatarImage v-if="showAvatar" :src="avatarUrl" :alt="user.name" />
         <AvatarFallback class="rounded-lg text-black dark:text-white">
             {{ getInitials(user.name) }}
         </AvatarFallback>

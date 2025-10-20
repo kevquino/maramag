@@ -24,12 +24,15 @@ const page = usePage();
             <SidebarMenuItem v-for="item in items" :key="item.title">
                 <SidebarMenuButton
                     as-child
-                    :is-active="urlIsActive(item.href, page.url)"
                     :tooltip="item.title"
+                    :class="[
+                        'hover:bg-gradient-to-r hover:from-blue-500/20 hover:to-green-400/10 hover:text-accent-foreground hover:backdrop-blur-md',
+                        { 'bg-gradient-to-r from-blue-500/30 to-green-400/15 backdrop-blur-md': urlIsActive(item.href, page.url) }
+                    ]"
                 >
-                    <Link :href="item.href">
-                        <component :is="item.icon" />
-                        <span>{{ item.title }}</span>
+                    <Link :href="item.href" class="flex items-center gap-2">
+                        <component :is="item.icon" class="h-4 w-4" />
+                        <span class="text-sm">{{ item.title }}</span>
                     </Link>
                 </SidebarMenuButton>
                 <SidebarMenuBadge 

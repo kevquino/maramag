@@ -51,6 +51,7 @@ class HandleInertiaRequests extends Middleware
                     'email' => $user->email,
                     'role' => $user->role,
                     'office' => $user->office,
+                    'avatar' => $user->avatar, // ← ADD THIS LINE
                     'is_active' => $user->is_active,
                     'permissions' => $user->permissions,
                     // UNIVERSAL PERMISSION SYSTEM: Use hasPermission instead of old methods

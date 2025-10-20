@@ -20,7 +20,12 @@ const handleLogout = () => {
     router.flushAll();
 };
 
-defineProps<Props>();
+const props = defineProps<Props>();
+
+// Debug: check the actual user data structure
+console.log('🔍 UserMenuContent user data:', JSON.stringify(props.user, null, 2));
+console.log('🔍 Avatar value:', props.user.avatar);
+console.log('🔍 Avatar type:', typeof props.user.avatar);
 </script>
 
 <template>

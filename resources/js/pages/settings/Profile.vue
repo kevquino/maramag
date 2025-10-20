@@ -19,10 +19,30 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from '@/components/ui/dialog';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from '@/components/ui/alert-dialog';
 import AppLayout from '@/layouts/AppLayout.vue';
 import SettingsLayout from '@/layouts/settings/Layout.vue';
 import { type BreadcrumbItem, type User } from '@/types';
-import { ref, computed } from 'vue';
+import { ref, computed, watch } from 'vue';
+import { toast } from 'vue-sonner';
 
 interface Props {
     mustVerifyEmail: boolean;
@@ -97,6 +117,12 @@ const positions = props.formOptions?.positions || {
     'Other': 'Other',
 };
 
+// Reactive form data
+const formData = ref({
+    office: user.office || '',
+    position: user.position || '',
+});
+
 // Format last update date
 const formatLastUpdate = (dateString: string) => {
     if (!dateString) return 'Never updated';
@@ -127,11 +153,11 @@ const lastUpdate = formatLastUpdate(user.updated_at);
 
 // Get display value for select fields
 const getOfficeDisplayValue = () => {
-    return user.office || 'Select office';
+    return formData.value.office ? offices[formData.value.office] || formData.value.office : 'Select office';
 };
 
 const getPositionDisplayValue = () => {
-    return user.position || 'Select position';
+    return formData.value.position ? positions[formData.value.position] || formData.value.position : 'Select position';
 };
 
 // Generate avatar from name
@@ -147,8 +173,9 @@ const generateAvatarFromName = (name: string) => {
 
 const avatarInitials = generateAvatarFromName(user.name);
 
-// Avatar functionality - use empty string for initials, image paths for avatars
+// Avatar functionality
 const selectedAvatar = ref(user.avatar || '');
+const tempSelectedAvatar = ref(user.avatar || ''); // For dialog selection
 
 // Avatar options - empty string represents initials
 const avatarOptions = [
@@ -169,11 +196,6 @@ const avatarOptions = [
     { type: 'image', display: '/images/avatars/avatar-pixel-art-2.svg', value: '/images/avatars/avatar-pixel-art-2.svg' },
 ];
 
-// Select avatar
-const selectAvatar = (avatarValue: string) => {
-    selectedAvatar.value = avatarValue;
-};
-
 // Computed properties for avatar display
 const isInitialsSelected = computed(() => selectedAvatar.value === '');
 const isImageSelected = computed(() => selectedAvatar.value !== '' && selectedAvatar.value.startsWith('/images/'));
@@ -183,6 +205,81 @@ const currentAvatarDisplay = computed(() => {
     }
     return ''; // Empty for initials
 });
+
+// Dialog state
+const isAvatarDialogOpen = ref(false);
+
+// Alert Dialog state
+const isSaveDialogOpen = ref(false);
+
+// Track if form was recently saved to disable button
+const wasRecentlySaved = ref(false);
+
+// Avatar selection in dialog
+const selectAvatarInDialog = (avatarValue: string) => {
+    tempSelectedAvatar.value = avatarValue;
+};
+
+// Confirm avatar selection
+const confirmAvatarSelection = () => {
+    selectedAvatar.value = tempSelectedAvatar.value;
+    isAvatarDialogOpen.value = false;
+    // Reset saved state when making new changes
+    wasRecentlySaved.value = false;
+};
+
+// Cancel avatar selection
+const cancelAvatarSelection = () => {
+    tempSelectedAvatar.value = selectedAvatar.value; // Reset to current selection
+    isAvatarDialogOpen.value = false;
+};
+
+// Initialize temp selection when dialog opens
+const openAvatarDialog = () => {
+    tempSelectedAvatar.value = selectedAvatar.value;
+    isAvatarDialogOpen.value = true;
+};
+
+// Form submission handling
+const form = ref<any>(null);
+
+// Handle save confirmation
+const confirmSave = () => {
+    if (form.value) {
+        // Set saved state to disable button
+        wasRecentlySaved.value = true;
+        
+        // Programmatically submit the form
+        form.value.submit();
+        
+        // Close the dialog
+        isSaveDialogOpen.value = false;
+    }
+};
+
+// Check if form has changes
+const hasFormChanges = computed(() => {
+    return selectedAvatar.value !== user.avatar ||
+           formData.value.office !== user.office ||
+           formData.value.position !== user.position;
+});
+
+// Check if save button should be disabled
+const isSaveDisabled = computed(() => {
+    return !hasFormChanges.value || wasRecentlySaved.value;
+});
+
+// Watch for form data changes to reset saved state
+watch([() => formData.value.office, () => formData.value.position, selectedAvatar], () => {
+    if (wasRecentlySaved.value) {
+        wasRecentlySaved.value = false;
+    }
+});
+
+// Handle verification email resend
+const handleVerificationResend = () => {
+    toast.info('Sending verification email...');
+};
 </script>
 
 <template>
@@ -200,6 +297,7 @@ const currentAvatarDisplay = computed(() => {
                     v-bind="ProfileController.update.form()"
                     class="w-full space-y-6"
                     v-slot="{ errors, processing, recentlySuccessful }"
+                    ref="form"
                 >
                     <!-- Avatar Section -->
                     <div class="w-full grid gap-4">
@@ -227,42 +325,64 @@ const currentAvatarDisplay = computed(() => {
                                     {{ isImageSelected ? 'Selected avatar' : 'Initials based on your name' }}
                                 </p>
                             </div>
-                        </div>
 
-                        <!-- Avatar Selection Grid - SMALLER -->
-                        <div class="w-full space-y-2">
-                            <Label class="text-sm font-medium">Choose Your Avatar</Label>
-                            <div class="w-full grid grid-cols-8 gap-2">
-                                <!-- Avatar Options -->
-                                <div
-                                    v-for="(avatar, index) in avatarOptions"
-                                    :key="index"
-                                    class="aspect-square rounded-full border-2 cursor-pointer hover:border-primary transition-all hover:scale-105"
-                                    :class="[
-                                        selectedAvatar === avatar.value ? 'border-primary ring-1 ring-primary/20' : 'border-border'
-                                    ]"
-                                    @click="selectAvatar(avatar.value)"
-                                >
-                                    <!-- Initials Avatar -->
-                                    <div
-                                        v-if="avatar.type === 'initials'"
-                                        class="w-full h-full rounded-full bg-gradient-to-br from-primary to-primary/80 flex items-center justify-center text-white font-medium text-sm"
-                                    >
-                                        {{ avatar.display }}
+                            <!-- Avatar Selection Dialog Trigger -->
+                            <Dialog v-model:open="isAvatarDialogOpen">
+                                <DialogTrigger as-child>
+                                    <Button variant="outline" size="sm" @click="openAvatarDialog">
+                                        Change Avatar
+                                    </Button>
+                                </DialogTrigger>
+                                <DialogContent class="sm:max-w-md">
+                                    <DialogHeader>
+                                        <DialogTitle>Choose Your Avatar</DialogTitle>
+                                        <DialogDescription>
+                                            Select an avatar or use your initials as your profile picture.
+                                        </DialogDescription>
+                                    </DialogHeader>
+                                    <div class="grid grid-cols-6 gap-3 py-4">
+                                        <!-- Avatar Options -->
+                                        <div
+                                            v-for="(avatar, index) in avatarOptions"
+                                            :key="index"
+                                            class="aspect-square rounded-full border-2 cursor-pointer hover:border-primary transition-all hover:scale-105"
+                                            :class="[
+                                                tempSelectedAvatar === avatar.value ? 'border-primary ring-2 ring-primary/30' : 'border-border'
+                                            ]"
+                                            @click="selectAvatarInDialog(avatar.value)"
+                                        >
+                                            <!-- Initials Avatar -->
+                                            <div
+                                                v-if="avatar.type === 'initials'"
+                                                class="w-full h-full rounded-full bg-gradient-to-br from-primary to-primary/80 flex items-center justify-center text-white font-medium text-sm"
+                                            >
+                                                {{ avatar.display }}
+                                            </div>
+                                            <!-- Image Avatar -->
+                                            <img 
+                                                v-else
+                                                :src="avatar.display" 
+                                                :alt="`Avatar ${index}`"
+                                                class="w-full h-full rounded-full object-cover bg-gray-100"
+                                                loading="lazy"
+                                            />
+                                        </div>
                                     </div>
-                                    <!-- Image Avatar -->
-                                    <img 
-                                        v-else
-                                        :src="avatar.display" 
-                                        :alt="`Avatar ${index}`"
-                                        class="w-full h-full rounded-full object-cover bg-gray-100"
-                                        loading="lazy"
-                                    />
-                                </div>
-                            </div>
-                            <p class="text-xs text-muted-foreground">
-                                Click to select an avatar. First option shows your initials.
-                            </p>
+                                    <div class="flex justify-end gap-2">
+                                        <Button 
+                                            variant="outline" 
+                                            @click="cancelAvatarSelection"
+                                        >
+                                            Cancel
+                                        </Button>
+                                        <Button 
+                                            @click="confirmAvatarSelection"
+                                        >
+                                            Confirm Selection
+                                        </Button>
+                                    </div>
+                                </DialogContent>
+                            </Dialog>
                         </div>
                         
                         <!-- Hidden input to store the selected avatar -->
@@ -331,12 +451,13 @@ const currentAvatarDisplay = computed(() => {
                         <!-- Office Field -->
                         <div class="w-full grid gap-2">
                             <Label for="office">Office</Label>
-                            <Select name="office" :default-value="user.office">
+                            <Select 
+                                name="office" 
+                                v-model="formData.office"
+                            >
                                 <SelectTrigger class="w-full">
                                     <SelectValue :placeholder="getOfficeDisplayValue()">
-                                        <template #default>
-                                            {{ getOfficeDisplayValue() }}
-                                        </template>
+                                        {{ getOfficeDisplayValue() }}
                                     </SelectValue>
                                 </SelectTrigger>
                                 <SelectContent>
@@ -358,12 +479,13 @@ const currentAvatarDisplay = computed(() => {
                         <!-- Position Field -->
                         <div class="w-full grid gap-2">
                             <Label for="position">Position</Label>
-                            <Select name="position" :default-value="user.position">
+                            <Select 
+                                name="position" 
+                                v-model="formData.position"
+                            >
                                 <SelectTrigger class="w-full">
                                     <SelectValue :placeholder="getPositionDisplayValue()">
-                                        <template #default>
-                                            {{ getPositionDisplayValue() }}
-                                        </template>
+                                        {{ getPositionDisplayValue() }}
                                     </SelectValue>
                                 </SelectTrigger>
                                 <SelectContent>
@@ -391,6 +513,7 @@ const currentAvatarDisplay = computed(() => {
                                 :href="send()"
                                 as="button"
                                 class="text-foreground underline decoration-neutral-300 underline-offset-4 transition-colors duration-300 ease-out hover:decoration-current! dark:decoration-neutral-500"
+                                @click="handleVerificationResend"
                             >
                                 Click here to resend the verification email.
                             </Link>
@@ -421,12 +544,33 @@ const currentAvatarDisplay = computed(() => {
                     </div>
 
                     <div class="w-full flex items-center gap-4">
-                        <Button
-                            :disabled="processing"
-                            data-test="update-profile-button"
-                        >
-                            Save Changes
-                        </Button>
+                        <!-- Save Changes with Alert Dialog -->
+                        <AlertDialog v-model:open="isSaveDialogOpen">
+                            <AlertDialogTrigger as-child>
+                                <Button
+                                    type="button"
+                                    :disabled="isSaveDisabled || processing"
+                                    data-test="update-profile-button"
+                                >
+                                    {{ wasRecentlySaved ? 'Saved!' : 'Save Changes' }}
+                                </Button>
+                            </AlertDialogTrigger>
+                            <AlertDialogContent>
+                                <AlertDialogHeader>
+                                    <AlertDialogTitle>Save Profile Changes</AlertDialogTitle>
+                                    <AlertDialogDescription>
+                                        Are you sure you want to save these changes to your profile?
+                                        This will update your avatar, office, and position information.
+                                    </AlertDialogDescription>
+                                </AlertDialogHeader>
+                                <AlertDialogFooter>
+                                    <AlertDialogCancel>Discard Changes</AlertDialogCancel>
+                                    <AlertDialogAction @click="confirmSave">
+                                        Continue to Save
+                                    </AlertDialogAction>
+                                </AlertDialogFooter>
+                            </AlertDialogContent>
+                        </AlertDialog>
 
                         <Transition
                             enter-active-class="transition ease-in-out"
