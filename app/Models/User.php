@@ -16,11 +16,23 @@ class User extends Authenticatable implements MustVerifyEmail
         'name',
         'email',
         'password',
+        'phone',
         'role',
         'office',
+        'position',
+        'avatar',
         'is_active',
         'last_login_at',
+        'last_login_ip',
+        'login_count',
         'permissions',
+        'timezone',
+        'locale',
+        'email_verified_at',
+        'two_factor_secret',
+        'two_factor_recovery_codes',
+        'two_factor_confirmed_at',
+        'remember_token',
     ];
 
     protected $hidden = [
@@ -38,6 +50,7 @@ class User extends Authenticatable implements MustVerifyEmail
             'last_login_at' => 'datetime',
             'is_active' => 'boolean',
             'permissions' => 'array',
+            'two_factor_confirmed_at' => 'datetime',
         ];
     }
 
@@ -76,6 +89,34 @@ class User extends Authenticatable implements MustVerifyEmail
             'Bids and Awards Committee' => 'Bids and Awards Committee',
             'Tourism Office' => 'Tourism Office',
             'Business Permit and Licensing Office' => 'Business Permit and Licensing Office',
+            'Other' => 'Other',
+        ];
+    }
+
+    /**
+     * Available positions
+     */
+    public static function getPositions(): array
+    {
+        return [
+            'Department Head' => 'Department Head',
+            'Assistant Department Head' => 'Assistant Department Head',
+            'Division Chief' => 'Division Chief',
+            'Administrative Officer' => 'Administrative Officer',
+            'Information Officer' => 'Information Officer',
+            'Planning Officer' => 'Planning Officer',
+            'Budget Officer' => 'Budget Officer',
+            'Accountant' => 'Accountant',
+            'Treasurer' => 'Treasurer',
+            'Assessor' => 'Assessor',
+            'Engineer' => 'Engineer',
+            'Health Officer' => 'Health Officer',
+            'Agriculturalist' => 'Agriculturalist',
+            'Social Welfare Officer' => 'Social Welfare Officer',
+            'Disaster Risk Officer' => 'Disaster Risk Officer',
+            'Tourism Officer' => 'Tourism Officer',
+            'Permit Officer' => 'Permit Officer',
+            'Staff' => 'Staff',
             'Other' => 'Other',
         ];
     }

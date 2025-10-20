@@ -31,6 +31,12 @@ export type AppPageProps<
     auth: Auth;
     sidebarOpen: boolean;
     badgeCounts?: BadgeCounts;
+    userData?: User;
+    formOptions?: {
+        roles: Record<string, string>;
+        offices: Record<string, string>;
+        positions: Record<string, string>;
+    };
 };
 
 export interface User {
@@ -46,6 +52,17 @@ export interface User {
     is_active: boolean;
     last_login_at: string | null;
     permissions: string[];
+    // Add missing fields
+    phone?: string;
+    position?: string;
+    last_login_ip?: string | null;
+    login_count?: number;
+    timezone?: string;
+    locale?: string;
+    two_factor_secret?: string;
+    two_factor_recovery_codes?: string;
+    two_factor_confirmed_at?: string | null;
+    remember_token?: string;
 }
 
 export type BreadcrumbItemType = BreadcrumbItem;
