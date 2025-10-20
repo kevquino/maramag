@@ -22,9 +22,12 @@ Route::get('dashboard', [DashboardController::class, 'index'])
     ->middleware(['auth', 'verified'])
     ->name('dashboard');
 
-Route::get('/api/dashboard/stats', [DashboardController::class, 'stats'])
-    ->middleware(['auth'])
-    ->name('dashboard.stats');
+// Enhanced dashboard API routes
+Route::prefix('api/dashboard')->middleware(['auth'])->group(function () {
+    Route::get('/stats', [DashboardController::class, 'stats'])->name('dashboard.stats');
+    Route::get('/system-stats', [DashboardController::class, 'systemStats'])->name('dashboard.system-stats');
+    Route::get('/recent-activities', [DashboardController::class, 'recentActivities'])->name('dashboard.recent-activities');
+});
 
 Route::middleware(['auth'])->group(function () {
     // News routes - require 'news' permission

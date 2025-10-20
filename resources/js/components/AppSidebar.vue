@@ -34,34 +34,46 @@ import { computed } from 'vue';
 
 const page = usePage();
 
-// Define a proper type for badge counts
-interface BadgeCounts {
-    news?: number;
+// Define proper types for badge counts (handle both old and new structures)
+interface SimpleBadgeCounts {
+    news?: number | { total: number; draft: number; pending: number };
     trash?: number;
-    bids_awards?: number;
-    full_disclosure?: number;
-    tourism?: number;
-    awards_recognition?: number;
-    sangguniang_bayan?: number;
-    ordinance_resolutions?: number;
-    users?: number;
+    bids_awards?: number | { total: number; active: number; closed: number };
+    full_disclosure?: number | { total: number; recent: number };
+    tourism?: number | { total: number; active: number; featured: number };
+    awards_recognition?: number | { total: number; active: number; featured: number };
+    sangguniang_bayan?: number | { total: number; active: number };
+    ordinance_resolutions?: number | { total: number; ordinances: number; resolutions: number };
+    users?: number | { total: number; active: number; pending: number };
     activity_logs?: number;
 }
 
-// Compute badge counts from page props with proper typing
+// Compute badge counts from page props with proper typing and structure handling
 const badgeCounts = computed(() => {
-    const props = page.props.badgeCounts as BadgeCounts | undefined;
+    const props = page.props.badgeCounts as SimpleBadgeCounts | undefined;
+    
+    // Helper function to extract count from both old and new structures
+    const getCount = (value: any): number => {
+        if (typeof value === 'number') {
+            return value;
+        }
+        if (value && typeof value === 'object' && 'total' in value) {
+            return value.total as number;
+        }
+        return 0;
+    };
+
     return {
-        news: props?.news ?? 0,
-        trash: props?.trash ?? 0,
-        bids_awards: props?.bids_awards ?? 0,
-        full_disclosure: props?.full_disclosure ?? 0,
-        tourism: props?.tourism ?? 0,
-        awards_recognition: props?.awards_recognition ?? 0,
-        sangguniang_bayan: props?.sangguniang_bayan ?? 0,
-        ordinance_resolutions: props?.ordinance_resolutions ?? 0,
-        users: props?.users ?? 0,
-        activity_logs: props?.activity_logs ?? 0,
+        news: getCount(props?.news),
+        trash: getCount(props?.trash),
+        bids_awards: getCount(props?.bids_awards),
+        full_disclosure: getCount(props?.full_disclosure),
+        tourism: getCount(props?.tourism),
+        awards_recognition: getCount(props?.awards_recognition),
+        sangguniang_bayan: getCount(props?.sangguniang_bayan),
+        ordinance_resolutions: getCount(props?.ordinance_resolutions),
+        users: getCount(props?.users),
+        activity_logs: getCount(props?.activity_logs),
     };
 });
 

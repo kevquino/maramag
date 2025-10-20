@@ -30,10 +30,7 @@ export type AppPageProps<
     quote: { message: string; author: string };
     auth: Auth;
     sidebarOpen: boolean;
-    badgeCounts?: {
-        news: number;
-        trash: number;
-    };
+    badgeCounts?: BadgeCounts;
 };
 
 export interface User {
@@ -80,4 +77,111 @@ export interface FlashMessages {
     error?: string;
     warning?: string;
     info?: string;
+}
+
+// Dashboard Types
+export interface BadgeCounts {
+  news?: {
+    total: number;
+    draft: number;
+    pending: number;
+  };
+  bids_awards?: {
+    total: number;
+    active: number;
+    closed: number;
+  };
+  full_disclosure?: {
+    total: number;
+    recent: number;
+  };
+  tourism?: {
+    total: number;
+    active: number;
+    featured: number;
+  };
+  awards_recognition?: {
+    total: number;
+    active: number;
+    featured: number;
+  };
+  sangguniang_bayan?: {
+    total: number;
+    active: number;
+  };
+  ordinance_resolutions?: {
+    total: number;
+    ordinances: number;
+    resolutions: number;
+  };
+  users?: {
+    total: number;
+    active: number;
+    pending: number;
+  };
+  activity_logs?: number;
+  trash?: number;
+}
+
+export interface SystemStats {
+  users?: {
+    total: number;
+    active: number;
+    pending: number;
+    inactive: number;
+    superadmins: number;
+    admins: number;
+    staff: number;
+    users: number;
+  };
+  content?: {
+    news: number;
+    published_news: number;
+    bids_awards: number;
+    tourism_packages: number;
+    active_tourism: number;
+    awards: number;
+    active_awards: number;
+    sb_members: number;
+    active_sb_members: number;
+    ordinances: number;
+    resolutions: number;
+    disclosures: number;
+  };
+  system?: {
+    activities: number;
+    storage_used: string;
+    database_size: string;
+    backup_status: string;
+    last_maintenance: string;
+  };
+}
+
+export interface RecentActivity {
+  id: number;
+  action: string;
+  description: string;
+  time: string;
+  user: string;
+  icon: string;
+  color: string;
+}
+
+export interface DashboardModule {
+  title: string;
+  description: string;
+  icon: string;
+  route: string;
+  color: string;
+  bgColor?: string;
+  stats: string;
+}
+
+export interface QuickStat {
+  label: string;
+  value: string;
+  change: string;
+  icon: string;
+  color: string;
+  bgColor: string;
 }
