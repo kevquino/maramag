@@ -32,7 +32,12 @@ import {
 import AppLogo from './AppLogo.vue';
 import { computed } from 'vue';
 
+// Import sidebar context
+import { useSidebar } from '@/components/ui/sidebar/utils';
+
 const page = usePage();
+const { state } = useSidebar();
+const isCollapsed = computed(() => state.value === 'collapsed');
 
 // Define proper types for badge counts (handle both old and new structures)
 interface SimpleBadgeCounts {
@@ -75,6 +80,20 @@ const badgeCounts = computed(() => {
         users: getCount(props?.users),
         activity_logs: getCount(props?.activity_logs),
     };
+});
+
+// Compute total badge count for global mini badge
+const totalBadgeCount = computed(() => {
+    return Object.values(badgeCounts.value).reduce((sum, count) => sum + count, 0);
+});
+
+// Helper function for global mini badge display
+const getGlobalMiniBadgeDisplay = (count: number): string => {
+    return count > 99 ? '99+' : count.toString();
+};
+
+const showGlobalMiniBadge = computed(() => {
+    return isCollapsed.value && totalBadgeCount.value > 0;
 });
 
 // Helper to show badge only if count > 0
@@ -332,8 +351,9 @@ const hasVisibleNavigation = computed(() => {
     <Sidebar 
         collapsible="icon" 
         variant="inset"
-        class="bg-white dark:bg-gray-950 md:bg-transparent"
+        class="bg-white dark:bg-gray-950 md:bg-transparent relative"
     >
+
         <SidebarHeader class="bg-white dark:bg-gray-950 md:bg-transparent">
             <SidebarMenu>
                 <SidebarMenuItem>

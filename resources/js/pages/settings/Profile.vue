@@ -290,7 +290,7 @@ const handleVerificationResend = () => {
             <div class="flex flex-col w-full space-y-6">
                 <HeadingSmall
                     title="Profile information"
-                    description="Update your name and email address"
+                    description="Update your profile information"
                 />
 
                 <Form
