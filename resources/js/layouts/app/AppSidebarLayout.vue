@@ -19,7 +19,10 @@ withDefaults(defineProps<Props>(), {
         <AppSidebar />
         <AppContent variant="sidebar" class="overflow-x-hidden">
             <AppSidebarHeader :breadcrumbs="breadcrumbs" />
-            <slot />
+            <!-- Add scrolling wrapper for main content -->
+            <div class="flex-1 overflow-auto">
+                <slot />
+            </div>
         </AppContent>
     </AppShell>
 </template>

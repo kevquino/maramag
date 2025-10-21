@@ -165,6 +165,58 @@
     }
 }
 
+/* ===== SIDEBAR SCROLLING STYLES ===== */
+/* Ensure proper height and scrolling behavior for sidebar */
+[data-sidebar="sidebar"] {
+    height: 100vh;
+    display: flex;
+    flex-direction: column;
+}
+
+[data-sidebar="content"] {
+    flex: 1;
+    min-height: 0; /* Crucial for flexbox scrolling */
+    display: flex;
+    flex-direction: column;
+}
+
+/* Ensure the scrollable area works properly */
+.sidebar-scrollable {
+    scrollbar-width: thin;
+    scrollbar-color: rgba(156, 163, 175, 0.5) transparent;
+}
+
+.sidebar-scrollable::-webkit-scrollbar {
+    width: 6px;
+}
+
+.sidebar-scrollable::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+.sidebar-scrollable::-webkit-scrollbar-thumb {
+    background-color: rgba(156, 163, 175, 0.5);
+    border-radius: 3px;
+}
+
+.sidebar-scrollable::-webkit-scrollbar-thumb:hover {
+    background-color: rgba(156, 163, 175, 0.7);
+}
+
+/* Dark mode scrollbar styles */
+.dark .sidebar-scrollable {
+    scrollbar-color: rgba(75, 85, 99, 0.5) transparent;
+}
+
+.dark .sidebar-scrollable::-webkit-scrollbar-thumb {
+    background-color: rgba(75, 85, 99, 0.5);
+}
+
+.dark .sidebar-scrollable::-webkit-scrollbar-thumb:hover {
+    background-color: rgba(75, 85, 99, 0.7);
+}
+
+/* ===== EXISTING SIDEBAR STYLES ===== */
 /* Ensure sidebar has proper background on mobile */
 @media (max-width: 768px) {
     [data-sidebar="sidebar"][data-state="open"] {
@@ -199,4 +251,3 @@ html:not(.dark) [data-sidebar="sidebar"] [data-sidebar-menu-button][data-active]
     background-color: #bfdbfe !important;
     color: #1e40af !important;
 }
-

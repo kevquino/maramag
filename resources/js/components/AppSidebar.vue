@@ -351,10 +351,10 @@ const hasVisibleNavigation = computed(() => {
     <Sidebar 
         collapsible="icon" 
         variant="inset"
-        class="bg-white dark:bg-gray-950 md:bg-transparent relative"
+        class="bg-white dark:bg-gray-950 md:bg-transparent h-screen flex flex-col"
     >
 
-        <SidebarHeader class="bg-white dark:bg-gray-950 md:bg-transparent">
+        <SidebarHeader class="bg-white dark:bg-gray-950 md:bg-transparent flex-shrink-0">
             <SidebarMenu>
                 <SidebarMenuItem>
                     <SidebarMenuButton size="lg" as-child>
@@ -368,42 +368,46 @@ const hasVisibleNavigation = computed(() => {
 
         <SidebarContent 
             v-if="hasVisibleNavigation" 
-            class="bg-white dark:bg-gray-950 md:bg-transparent"
+            class="bg-white dark:bg-gray-950 md:bg-transparent flex-1 min-h-0"
         >
-            <!-- Main Navigation -->
-            <NavMain v-if="visibleMainNavItems.length > 0" :items="visibleMainNavItems" />
-            
-            <!-- Business Permit Section -->
-            <div v-if="visibleBusinessPermitItems.length > 0" class="border-t border-gray-200 dark:border-gray-700 my-2 mx-4"></div>
-            <NavMain v-if="visibleBusinessPermitItems.length > 0" :items="visibleBusinessPermitItems" />
-            
-            <!-- Sanggunian Section -->
-            <div v-if="visibleSanggunianItems.length > 0" class="border-t border-gray-200 dark:border-gray-700 my-2 mx-4"></div>
-            <NavMain v-if="visibleSanggunianItems.length > 0" :items="visibleSanggunianItems" />
-            
-            <!-- Admin Section -->
-            <div v-if="visibleAdminItems.length > 0" class="border-t border-gray-200 dark:border-gray-700 my-2 mx-4"></div>
-            <NavMain v-if="visibleAdminItems.length > 0" :items="visibleAdminItems" />
+            <!-- Scrollable navigation content using global CSS class -->
+            <div class="h-full overflow-y-auto py-2 sidebar-scrollable">
+                <!-- Main Navigation -->
+                <NavMain v-if="visibleMainNavItems.length > 0" :items="visibleMainNavItems" />
+                
+                <!-- Business Permit Section -->
+                <div v-if="visibleBusinessPermitItems.length > 0" class="border-t border-gray-200 dark:border-gray-700 my-2 mx-4"></div>
+                <NavMain v-if="visibleBusinessPermitItems.length > 0" :items="visibleBusinessPermitItems" />
+                
+                <!-- Sanggunian Section -->
+                <div v-if="visibleSanggunianItems.length > 0" class="border-t border-gray-200 dark:border-gray-700 my-2 mx-4"></div>
+                <NavMain v-if="visibleSanggunianItems.length > 0" :items="visibleSanggunianItems" />
+                
+                <!-- Admin Section -->
+                <div v-if="visibleAdminItems.length > 0" class="border-t border-gray-200 dark:border-gray-700 my-2 mx-4"></div>
+                <NavMain v-if="visibleAdminItems.length > 0" :items="visibleAdminItems" />
+            </div>
         </SidebarContent>
 
         <!-- Show message if no navigation items are visible -->
         <SidebarContent 
             v-else 
-            class="bg-white dark:bg-gray-950 md:bg-transparent"
+            class="bg-white dark:bg-gray-950 md:bg-transparent flex-1 min-h-0"
         >
-            <div class="px-4 py-8 text-center text-gray-500 dark:text-gray-400">
-                <p class="text-sm">No navigation items available.</p>
-                <p class="text-xs mt-1">Contact administrator for access.</p>
-                <p class="text-xs mt-1">User: {{ page.props.auth?.user?.email }}</p>
-                <p class="text-xs mt-1">Role: {{ page.props.auth?.user?.role }}</p>
-                <p class="text-xs mt-1">Permissions: {{ page.props.auth?.user?.permissions }}</p>
+            <div class="h-full overflow-y-auto flex items-center justify-center px-4 sidebar-scrollable">
+                <div class="text-center text-gray-500 dark:text-gray-400">
+                    <p class="text-sm">No navigation items available.</p>
+                    <p class="text-xs mt-1">Contact administrator for access.</p>
+                    <p class="text-xs mt-1">User: {{ page.props.auth?.user?.email }}</p>
+                    <p class="text-xs mt-1">Role: {{ page.props.auth?.user?.role }}</p>
+                    <p class="text-xs mt-1">Permissions: {{ page.props.auth?.user?.permissions }}</p>
+                </div>
             </div>
         </SidebarContent>
 
-        <SidebarFooter class="bg-white dark:bg-gray-950 md:bg-transparent">
+        <SidebarFooter class="bg-white dark:bg-gray-950 md:bg-transparent flex-shrink-0">
             <NavFooter :items="footerNavItems" />
             <NavUser />
         </SidebarFooter>
     </Sidebar>
-    <slot />
 </template>
