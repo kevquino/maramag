@@ -32,7 +32,12 @@ import {
 import AppLogo from './AppLogo.vue';
 import { computed } from 'vue';
 
+// Import sidebar context
+import { useSidebar } from '@/components/ui/sidebar/utils';
+
 const page = usePage();
+const { state } = useSidebar();
+const isCollapsed = computed(() => state.value === 'collapsed');
 
 // Define proper types for badge counts (handle both old and new structures)
 interface SimpleBadgeCounts {
@@ -75,6 +80,20 @@ const badgeCounts = computed(() => {
         users: getCount(props?.users),
         activity_logs: getCount(props?.activity_logs),
     };
+});
+
+// Compute total badge count for global mini badge
+const totalBadgeCount = computed(() => {
+    return Object.values(badgeCounts.value).reduce((sum, count) => sum + count, 0);
+});
+
+// Helper function for global mini badge display
+const getGlobalMiniBadgeDisplay = (count: number): string => {
+    return count > 99 ? '99+' : count.toString();
+};
+
+const showGlobalMiniBadge = computed(() => {
+    return isCollapsed.value && totalBadgeCount.value > 0;
 });
 
 // Helper to show badge only if count > 0
@@ -329,8 +348,13 @@ const hasVisibleNavigation = computed(() => {
 </script>
 
 <template>
-    <Sidebar collapsible="icon" variant="inset">
-        <SidebarHeader>
+    <Sidebar 
+        collapsible="icon" 
+        variant="inset"
+        class="bg-white dark:bg-gray-950 md:bg-transparent relative"
+    >
+
+        <SidebarHeader class="bg-white dark:bg-gray-950 md:bg-transparent">
             <SidebarMenu>
                 <SidebarMenuItem>
                     <SidebarMenuButton size="lg" as-child>
@@ -342,7 +366,10 @@ const hasVisibleNavigation = computed(() => {
             </SidebarMenu>
         </SidebarHeader>
 
-        <SidebarContent v-if="hasVisibleNavigation">
+        <SidebarContent 
+            v-if="hasVisibleNavigation" 
+            class="bg-white dark:bg-gray-950 md:bg-transparent"
+        >
             <!-- Main Navigation -->
             <NavMain v-if="visibleMainNavItems.length > 0" :items="visibleMainNavItems" />
             
@@ -360,7 +387,10 @@ const hasVisibleNavigation = computed(() => {
         </SidebarContent>
 
         <!-- Show message if no navigation items are visible -->
-        <SidebarContent v-else>
+        <SidebarContent 
+            v-else 
+            class="bg-white dark:bg-gray-950 md:bg-transparent"
+        >
             <div class="px-4 py-8 text-center text-gray-500 dark:text-gray-400">
                 <p class="text-sm">No navigation items available.</p>
                 <p class="text-xs mt-1">Contact administrator for access.</p>
@@ -370,7 +400,7 @@ const hasVisibleNavigation = computed(() => {
             </div>
         </SidebarContent>
 
-        <SidebarFooter>
+        <SidebarFooter class="bg-white dark:bg-gray-950 md:bg-transparent">
             <NavFooter :items="footerNavItems" />
             <NavUser />
         </SidebarFooter>
