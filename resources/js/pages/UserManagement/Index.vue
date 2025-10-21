@@ -3,8 +3,8 @@ import AppLayout from '@/layouts/AppLayout.vue';
 import { dashboard } from '@/routes';
 import { type BreadcrumbItem } from '@/types';
 import { type ColumnDef } from "@tanstack/vue-table"
-import { Eye, Edit, Trash2, UserX, UserCheck, Mail, Building, Shield, Calendar, Filter, Search, X, ChevronDown, Plus, CheckCircle, XCircle } from "lucide-vue-next"
-import { h, ref, watch, nextTick, onMounted } from "vue"
+import { Eye, Edit, Trash2, UserX, UserCheck, Mail, Building, Shield, Calendar, Filter, Search, X, ChevronDown, Plus, CheckCircle, XCircle, User } from "lucide-vue-next"
+import { h, ref, watch, nextTick, onMounted, computed } from "vue"
 import { router, Head, Link, usePage } from '@inertiajs/vue3'
 import { toast } from 'vue-sonner'
 
@@ -45,6 +45,7 @@ export interface User {
   role: string
   office: string
   is_active: boolean
+  avatar: string | null
   last_login_at: string | null
   email_verified_at: string | null
   created_at: string
@@ -228,6 +229,12 @@ const clearFilters = () => {
   reloadPage()
 }
 
+// Updated pagination handlers
+const handlePageChange = (page: number) => {
+  currentPage.value = page
+  reloadPage()
+}
+
 const handlePreviousPage = () => {
   if (currentPage.value > 1) {
     currentPage.value--
@@ -336,6 +343,26 @@ const isEmailVerified = (emailVerifiedAt: string | null) => {
   return !!emailVerifiedAt
 }
 
+// Avatar utility functions
+const getInitials = (name: string): string => {
+  if (!name) return '?'
+  return name
+    .split(' ')
+    .map(part => part.charAt(0).toUpperCase())
+    .slice(0, 2)
+    .join('')
+}
+
+const getAvatarUrl = (avatar: string | null): string | null => {
+  if (!avatar) return null
+  // If avatar is already a full URL, return it
+  if (avatar.startsWith('http')) return avatar
+  // If avatar starts with /images/, return as is (for predefined avatars)
+  if (avatar.startsWith('/images/')) return avatar
+  // Otherwise, assume it's a relative path from storage
+  return `/storage/${avatar}`
+}
+
 // Event handler for input events with proper typing
 const handleSearchInput = (event: Event) => {
   const target = event.target as HTMLInputElement;
@@ -399,9 +426,40 @@ const columns: ColumnDef<User>[] = [
     header: () => h("div", { class: "text-left font-semibold" }, "User Details"),
     cell: ({ row }) => {
       const user = row.original;
+      const avatarUrl = getAvatarUrl(user.avatar);
+      const initials = getInitials(user.name);
+      
+      // Debug log to check avatar data
+      console.log('User avatar data:', {
+        name: user.name,
+        avatar: user.avatar,
+        avatarUrl: avatarUrl,
+        initials: initials
+      });
+      
       return h("div", { class: "flex items-start space-x-3" }, [
-        h("div", { class: "flex-shrink-0 w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center" }, [
-          h(Shield, { class: "h-5 w-5 text-primary" })
+        // Avatar with image or initials
+        h("div", { class: "flex-shrink-0 relative" }, [
+          avatarUrl 
+            ? h("img", {
+                src: avatarUrl,
+                alt: user.name,
+                class: "w-10 h-10 rounded-full object-cover border-2 border-border shadow-sm",
+                onError: (e: any) => {
+                  // If image fails to load, fall back to initials
+                  e.target.style.display = 'none';
+                  const parent = e.target.parentElement;
+                  const fallback = document.createElement('div');
+                  fallback.className = 'w-10 h-10 rounded-full bg-gradient-to-br from-primary to-primary/80 flex items-center justify-center text-white font-semibold text-sm border-2 border-border shadow-sm';
+                  fallback.textContent = initials;
+                  parent.appendChild(fallback);
+                }
+              })
+            : h("div", { 
+                class: "w-10 h-10 rounded-full bg-gradient-to-br from-primary to-primary/80 flex items-center justify-center text-white font-semibold text-sm border-2 border-border shadow-sm"
+              }, [
+                h("span", { class: "text-sm font-medium" }, initials)
+              ])
         ]),
         h("div", { class: "min-w-0 flex-1" }, [
           h("div", { class: "flex items-center space-x-2" }, [
@@ -814,12 +872,13 @@ onMounted(() => {
         :enable-column-visibility="false"
       />
 
-      <!-- Pagination using reusable component -->
+      <!-- Updated Pagination using reusable component with shadcn-vue pagination -->
       <DataTablePagination
         :current-page="currentPage"
         :total="total"
         :page-size="pageSize"
         :loading="loading"
+        @page-change="handlePageChange"
         @previous="handlePreviousPage"
         @next="handleNextPage"
       />
@@ -853,35 +912,3 @@ onMounted(() => {
     </AlertDialog>
   </AppLayout>
 </template>
-
-<style scoped>
-/* Additional styling for better table alignment */
-:deep(.data-table) {
-  width: 100%;
-}
-
-:deep(.data-table th) {
-  vertical-align: middle;
-  padding: 0.75rem 0.5rem;
-}
-
-:deep(.data-table td) {
-  vertical-align: middle;
-  padding: 0.75rem 0.5rem;
-}
-
-:deep(.data-table .text-left) {
-  text-align: left;
-  justify-content: flex-start;
-}
-
-:deep(.data-table .text-center) {
-  text-align: center;
-  justify-content: center;
-}
-
-:deep(.data-table .text-right) {
-  text-align: right;
-  justify-content: flex-end;
-}
-</style>

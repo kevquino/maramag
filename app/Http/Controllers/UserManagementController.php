@@ -33,6 +33,11 @@ class UserManagementController extends Controller
         $filters = $request->only(['search', 'role', 'status', 'office']);
         
         $users = User::query()
+            ->select([
+                'id', 'name', 'email', 'phone', 'role', 'office', 'position', 
+                'avatar', 'is_active', 'last_login_at', 'email_verified_at',
+                'created_at', 'updated_at'
+            ])
             ->when($filters['search'] ?? null, function ($query, $search) {
                 $query->where(function ($query) use ($search) {
                     $query->where('name', 'like', '%'.$search.'%')
@@ -190,12 +195,17 @@ class UserManagementController extends Controller
 
         $badgeCounts = $this->getBadgeCounts(auth()->user());
 
+        // Check if current user can edit permissions for this user
+        $canEditPermissions = (auth()->user()->canManageUsers() || auth()->user()->isSuperAdmin()) && 
+                             auth()->id() !== $user->id;
+
         return Inertia::render('UserManagement/Edit', [
             'user' => $user,
             'roleOptions' => User::getRoles(),
             'officeOptions' => User::getOffices(),
             'permissionOptions' => User::getAvailablePermissions(),
             'permissionGroups' => User::getPermissionGroups(),
+            'canEditPermissions' => $canEditPermissions,
             'badgeCounts' => $badgeCounts,
         ]);
     }
@@ -215,25 +225,43 @@ class UserManagementController extends Controller
         $validated = $request->validate([
             'name' => 'required|string|max:255',
             'email' => ['required', 'string', 'email', 'max:255', Rule::unique('users')->ignore($user->id)],
+            'phone' => 'nullable|string|max:20',
+            'position' => 'nullable|string|max:255',
             'role' => ['required', 'string', Rule::in(array_keys(User::getRoles()))],
             'office' => ['required', 'string', Rule::in(array_keys(User::getOffices()))],
             'is_active' => 'boolean',
             'password' => 'nullable|string|min:8|confirmed',
             'permissions' => 'array',
             'permissions.*' => ['string', Rule::in(array_keys(User::getAvailablePermissions()))],
+            'avatar' => 'nullable|string',
         ]);
 
         $updateData = [
             'name' => $validated['name'],
             'email' => $validated['email'],
+            'phone' => $validated['phone'] ?? $user->phone,
+            'position' => $validated['position'] ?? $user->position,
             'role' => $validated['role'],
             'office' => $validated['office'],
             'is_active' => $validated['is_active'] ?? $user->is_active,
         ];
 
-        // Update permissions if provided (only for admin/superadmin)
-        if ((auth()->user()->canManageUsers() || auth()->user()->isSuperAdmin()) && isset($validated['permissions'])) {
-            $updateData['permissions'] = $validated['permissions'];
+        // Update avatar if provided
+        if (isset($validated['avatar'])) {
+            $updateData['avatar'] = $validated['avatar'];
+        }
+
+        // Update permissions if provided (only for admin/superadmin and not editing self)
+        if ((auth()->user()->canManageUsers() || auth()->user()->isSuperAdmin()) && 
+            auth()->id() !== $user->id && 
+            isset($validated['permissions'])) {
+            
+            // If user is being set as superadmin, automatically grant all permissions
+            if ($validated['role'] === 'superadmin') {
+                $updateData['permissions'] = array_keys(User::getAvailablePermissions());
+            } else {
+                $updateData['permissions'] = $validated['permissions'];
+            }
         }
 
         if (!empty($validated['password'])) {
