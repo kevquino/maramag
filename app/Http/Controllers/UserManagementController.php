@@ -173,8 +173,22 @@ class UserManagementController extends Controller
 
         $badgeCounts = $this->getBadgeCounts(auth()->user());
 
+        // Ensure permissions are always an array for the view
+        $userPermissions = $user->permissions ?? [];
+        if (is_string($userPermissions)) {
+            try {
+                $userPermissions = json_decode($userPermissions, true) ?? [];
+            } catch (\Exception $e) {
+                $userPermissions = [];
+            }
+        }
+        
+        if (!is_array($userPermissions)) {
+            $userPermissions = [];
+        }
+
         return Inertia::render('UserManagement/Show', [
-            'user' => $user,
+            'user' => array_merge($user->toArray(), ['permissions' => $userPermissions]),
             'permissionOptions' => User::getAvailablePermissions(),
             'permissionGroups' => User::getPermissionGroups(),
             'badgeCounts' => $badgeCounts,
@@ -199,8 +213,36 @@ class UserManagementController extends Controller
         $canEditPermissions = (auth()->user()->canManageUsers() || auth()->user()->isSuperAdmin()) && 
                              auth()->id() !== $user->id;
 
+        // CRITICAL FIX: Ensure permissions are always an array
+        $userPermissions = $user->permissions ?? [];
+        if (is_string($userPermissions)) {
+            try {
+                $userPermissions = json_decode($userPermissions, true) ?? [];
+            } catch (\Exception $e) {
+                $userPermissions = [];
+            }
+        }
+        
+        if (!is_array($userPermissions)) {
+            $userPermissions = [];
+        }
+
+        // Ensure dashboard is always included if user has any permissions
+        if (!empty($userPermissions) && !in_array('dashboard', $userPermissions)) {
+            $userPermissions[] = 'dashboard';
+        }
+
+        // Debug logging
+        \Log::debug('UserManagementController - Edit User Permissions', [
+            'user_id' => $user->id,
+            'original_permissions' => $user->permissions,
+            'processed_permissions' => $userPermissions,
+            'permissions_type' => gettype($user->permissions),
+            'is_array' => is_array($user->permissions),
+        ]);
+
         return Inertia::render('UserManagement/Edit', [
-            'user' => $user,
+            'user' => array_merge($user->toArray(), ['permissions' => $userPermissions]),
             'roleOptions' => User::getRoles(),
             'officeOptions' => User::getOffices(),
             'permissionOptions' => User::getAvailablePermissions(),

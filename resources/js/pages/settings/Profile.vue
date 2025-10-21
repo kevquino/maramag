@@ -436,8 +436,8 @@ const handleVerificationResend = () => {
                         <InputError class="mt-2" :message="errors.email" />
                     </div>
 
-                    <!-- Professional Information Section -->
-                    <div class="w-full grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <!-- Professional Information Section - Only show if role is not 'user' -->
+                    <div v-if="user.role !== 'user'" class="w-full grid grid-cols-1 md:grid-cols-3 gap-4">
                         <!-- Role Field (Read-only) -->
                         <div class="w-full grid gap-2">
                             <Label for="role">Role</Label>

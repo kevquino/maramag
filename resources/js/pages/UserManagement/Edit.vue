@@ -66,15 +66,6 @@ const props = defineProps<{
 
 const page = usePage();
 
-// Debug: Log all props to see what's being passed
-console.log('🔍 DEBUG - Edit.vue Props:', {
-  user: props.user,
-  userPermissions: props.user.permissions,
-  roleOptions: props.roleOptions,
-  permissionOptions: props.permissionOptions,
-  canEditPermissions: props.canEditPermissions
-});
-
 // Define flash message interface
 interface FlashMessages {
   success?: string;
@@ -176,7 +167,7 @@ const form = useForm<{
   is_active: props.user.is_active,
   password: '',
   password_confirmation: '',
-  permissions: [] as string[], // Explicitly type as string[]
+  permissions: [] as string[],
   avatar: props.user.avatar || '',
 });
 
@@ -618,7 +609,7 @@ const formatLastUpdate = (dateString: string) => {
 
 const lastUpdate = formatLastUpdate(props.user.updated_at);
 
-// Get role badge variant - FIXED: Using actual roles from User model
+// Get role badge variant
 const getRoleBadgeVariant = (role: string) => {
   switch (role) {
     case 'superadmin': return 'destructive';
@@ -628,35 +619,35 @@ const getRoleBadgeVariant = (role: string) => {
   }
 }
 
-// Initialize permissions - FIXED VERSION
+// Initialize permissions
 const initializePermissions = () => {
   shownFlashMessages.value.clear();
   
-  console.log('🔍 DEBUG - initializePermissions START:', {
-    userPermissionsFromProps: props.user.permissions,
-    userPermissionsType: typeof props.user.permissions,
-    userPermissionsLength: Array.isArray(props.user.permissions) ? props.user.permissions.length : 'NOT ARRAY',
-    currentFormPermissions: form.permissions,
-    allPermissions: allPermissions.value,
-    editablePermissions: editablePermissions.value,
-    isSuperAdmin: isSuperAdmin.value
-  });
+  // Handle different formats of permissions from props
+  let initialPermissions: string[] = [];
   
-  // Ensure permissions is always an array
-  if (!Array.isArray(form.permissions)) {
-    form.permissions = [];
-  }
-  
-  // CRITICAL FIX: Properly initialize form permissions from user permissions
-  if (Array.isArray(props.user.permissions) && props.user.permissions.length > 0) {
-    // Use the actual permissions from the user
-    form.permissions = [...props.user.permissions];
-    console.log('✅ DEBUG - Using user permissions from props:', form.permissions);
+  if (Array.isArray(props.user.permissions)) {
+    // Already an array - use as is
+    initialPermissions = [...props.user.permissions];
+  } else if (typeof props.user.permissions === 'string') {
+    // Try to parse as JSON
+    try {
+      const parsed = JSON.parse(props.user.permissions);
+      if (Array.isArray(parsed)) {
+        initialPermissions = parsed;
+      } else {
+        initialPermissions = ['dashboard'];
+      }
+    } catch (e) {
+      initialPermissions = ['dashboard'];
+    }
   } else {
-    // If no permissions from user, start with just dashboard
-    form.permissions = ['dashboard'];
-    console.log('⚠️ DEBUG - No user permissions found, using default dashboard only');
+    // Fallback to just dashboard
+    initialPermissions = ['dashboard'];
   }
+  
+  // Ensure permissions is always an array in the form
+  form.permissions = initialPermissions;
   
   // Ensure dashboard permission is always included
   if (!form.permissions.includes('dashboard')) {
@@ -666,17 +657,10 @@ const initializePermissions = () => {
   // If user is superadmin, automatically enable all permissions
   if (form.role === 'superadmin') {
     form.permissions = [...allPermissions.value];
-    console.log('🔵 DEBUG - Superadmin detected, enabling all permissions');
   }
   
   // Initialize select all state
   updateSelectAllState();
-  
-  console.log('🔍 DEBUG - After initializePermissions:', {
-    finalPermissions: form.permissions,
-    finalPermissionsLength: form.permissions.length,
-    selectAllState: selectAllPermissions.value
-  });
 };
 
 // Clear shown messages when component unmounts
@@ -691,10 +675,20 @@ onMounted(() => {
   <AppLayout :breadcrumbs="breadcrumbs">
     <div class="w-full p-4 sm:p-6">
       <div class="w-full max-w-none mx-auto">
-        <!-- Header -->
+                <!-- Header -->
         <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6">
           <div class="flex-1 min-w-0">
-            <h1 class="text-2xl sm:text-3xl font-bold text-foreground truncate">Edit User</h1>
+            <div class="flex items-center space-x-2">
+              <Button
+                variant="ghost"
+                size="sm"
+                @click="cancel"
+                class="h-8 w-8 p-0"
+              >
+                <ArrowLeft class="h-4 w-4" />
+              </Button>
+              <h1 class="text-2xl sm:text-3xl font-bold text-foreground truncate">Edit User</h1>
+            </div>
             <p class="text-muted-foreground mt-1">Update user details and permissions</p>
             <div v-if="isEditingSelf" class="mt-2">
               <Badge variant="outline" class="bg-blue-50 text-blue-700 border-blue-200">
@@ -966,18 +960,6 @@ onMounted(() => {
                 </CardDescription>
               </CardHeader>
               <CardContent class="space-y-6">
-                <!-- Debug Info -->
-                <div class="p-3 bg-yellow-50 border border-yellow-200 rounded-lg text-sm">
-                  <div class="font-semibold text-yellow-800 mb-1">Debug Info:</div>
-                  <div class="text-yellow-700 space-y-1">
-                    <div>Editable Permissions: {{ editablePermissions.length }}</div>
-                    <div>Current Form Permissions: {{ form.permissions.length }}</div>
-                    <div>User Permissions from Props: {{ Array.isArray(user.permissions) ? user.permissions.length : 'NOT ARRAY' }}</div>
-                    <div>Can Edit Permissions: {{ canEditPermissions }}</div>
-                    <div>Is Superadmin: {{ isSuperAdmin }}</div>
-                  </div>
-                </div>
-
                 <!-- Select All Toggle -->
                 <div v-if="!isSuperAdmin" class="flex items-center justify-between p-4 border rounded-lg bg-muted/30">
                   <div class="space-y-0.5">
@@ -1028,9 +1010,7 @@ onMounted(() => {
                       </p>
                       <!-- Database permission indicator -->
                       <div v-if="hasPermissionInDatabase(permission) && !isSuperAdmin" class="flex items-center space-x-1 mt-1">
-                        <Badge variant="outline" class="text-xs bg-blue-50 text-blue-700 border-blue-200">
-                          Has Permission in Database
-                        </Badge>
+                        
                       </div>
                     </div>
                     <Switch
@@ -1056,11 +1036,6 @@ onMounted(() => {
                         <p class="text-sm text-green-600">
                           {{ permissionOptions['dashboard']?.description || 'Access to the main dashboard' }}
                         </p>
-                        <div class="flex items-center space-x-1 mt-1">
-                          <Badge variant="outline" class="text-xs bg-green-50 text-green-700 border-green-200">
-                            Always Enabled for All Users
-                          </Badge>
-                        </div>
                       </div>
                       <Switch
                         :model-value="true"

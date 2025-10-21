@@ -399,12 +399,13 @@ const isStatusSelected = (value: string) => {
   return statusFilter.value === value
 }
 
-// Get badge variant based on role
+// Get badge variant based on role - UPDATED with user role
 const getRoleBadgeVariant = (role: string) => {
   switch (role) {
-    case 'admin': return 'destructive'
-    case 'PIO Officer': return 'default'
-    case 'PIO Staff': return 'secondary'
+    case 'superadmin': return 'destructive'
+    case 'admin': return 'default'
+    case 'staff': return 'secondary'
+    case 'user': return 'outline' // Added user role
     default: return 'outline'
   }
 }

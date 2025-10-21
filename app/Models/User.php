@@ -55,6 +55,46 @@ class User extends Authenticatable implements MustVerifyEmail
     }
 
     /**
+     * Get permissions attribute with proper casting
+     */
+    public function getPermissionsAttribute($value)
+    {
+        if (is_array($value)) {
+            return $value;
+        }
+        
+        if (is_string($value)) {
+            try {
+                return json_decode($value, true) ?? [];
+            } catch (\Exception $e) {
+                return [];
+            }
+        }
+        
+        return [];
+    }
+
+    /**
+     * Set permissions attribute with proper encoding
+     */
+    public function setPermissionsAttribute($value)
+    {
+        if (is_array($value)) {
+            $this->attributes['permissions'] = json_encode(array_values($value));
+        } elseif (is_string($value)) {
+            // Try to decode to validate it's proper JSON, then re-encode
+            try {
+                $decoded = json_decode($value, true);
+                $this->attributes['permissions'] = json_encode($decoded ? array_values($decoded) : []);
+            } catch (\Exception $e) {
+                $this->attributes['permissions'] = json_encode([]);
+            }
+        } else {
+            $this->attributes['permissions'] = json_encode([]);
+        }
+    }
+
+    /**
      * Available roles - Universal System
      */
     public static function getRoles(): array
@@ -63,6 +103,7 @@ class User extends Authenticatable implements MustVerifyEmail
             'superadmin' => 'Super Administrator',
             'admin' => 'Office Administrator',
             'staff' => 'Office Staff',
+            'user' => 'User', // Added user role
         ];
     }
 
@@ -345,6 +386,30 @@ class User extends Authenticatable implements MustVerifyEmail
     }
 
     /**
+     * Check if user is regular user
+     */
+    public function isUser(): bool
+    {
+        return $this->role === 'user';
+    }
+
+    /**
+     * Check if user is staff or higher
+     */
+    public function isStaffOrHigher(): bool
+    {
+        return in_array($this->role, ['staff', 'admin', 'superadmin']);
+    }
+
+    /**
+     * Check if user is admin or higher  
+     */
+    public function isAdminOrHigher(): bool
+    {
+        return in_array($this->role, ['admin', 'superadmin']);
+    }
+
+    /**
      * Check if user is active
      */
     public function isActive(): bool
@@ -386,9 +451,29 @@ class User extends Authenticatable implements MustVerifyEmail
     {
         $defaultPermissions = ['dashboard']; // All users get dashboard access
 
-        // Office-based permissions
-        $officePermissions = self::getOfficeDefaultPermissions($office);
-        $defaultPermissions = array_merge($defaultPermissions, $officePermissions);
+        // Role-based permissions
+        switch ($role) {
+            case 'user':
+                // Users get minimal permissions - only dashboard by default
+                break;
+            case 'staff':
+                // Staff get office-based permissions plus some additional ones
+                $officePermissions = self::getOfficeDefaultPermissions($office);
+                $defaultPermissions = array_merge($defaultPermissions, $officePermissions);
+                break;
+            case 'admin':
+                // Admin get all office permissions plus management capabilities
+                $officePermissions = self::getOfficeDefaultPermissions($office);
+                $defaultPermissions = array_merge($defaultPermissions, $officePermissions);
+                // Admin might get additional permissions like user management for their office
+                if (in_array('user_management', $defaultPermissions)) {
+                    $defaultPermissions[] = 'activity_logs';
+                }
+                break;
+            case 'superadmin':
+                // Superadmin gets all permissions automatically in the hasPermission method
+                break;
+        }
 
         return array_unique($defaultPermissions);
     }
@@ -698,6 +783,7 @@ class User extends Authenticatable implements MustVerifyEmail
             case 'superadmin': return 'destructive';
             case 'admin': return 'default';
             case 'staff': return 'secondary';
+            case 'user': return 'outline'; // Added user role
             default: return 'outline';
         }
     }
@@ -714,6 +800,11 @@ class User extends Authenticatable implements MustVerifyEmail
 
         // Admin can edit users in their office (except superadmin)
         if ($this->isAdmin() && $this->office === $targetUser->office && !$targetUser->isSuperAdmin()) {
+            return true;
+        }
+
+        // Staff can edit users in their office who are regular users
+        if ($this->isStaff() && $this->office === $targetUser->office && $targetUser->role === 'user') {
             return true;
         }
 
@@ -747,6 +838,11 @@ class User extends Authenticatable implements MustVerifyEmail
 
         // Admin can change status of users in their office (except superadmin)
         if ($this->isAdmin() && $this->office === $targetUser->office && !$targetUser->isSuperAdmin()) {
+            return true;
+        }
+
+        // Staff can change status of regular users in their office
+        if ($this->isStaff() && $this->office === $targetUser->office && $targetUser->role === 'user') {
             return true;
         }
 

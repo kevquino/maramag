@@ -299,14 +299,26 @@ const getLocaleDisplay = (locale: string) => {
           </div>
           
           <!-- Edit Button in Header for Easy Access -->
-          <Button
-            v-if="canEdit"
-            @click="handleEdit"
-            class="w-full sm:w-auto"
-          >
-            <Edit class="h-4 w-4 mr-2" />
-            Edit User
-          </Button>
+          <div class="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 w-full sm:w-auto">
+            <Button
+              @click="handleBack"
+              variant="outline"
+              class="w-full sm:w-auto"
+            >
+              <ArrowLeft class="h-4 w-4 mr-2" />
+              <span class="hidden sm:inline">Back to List</span>
+              <span class="sm:hidden">Back</span>
+            </Button>
+            <Button
+              v-if="canEdit"
+              @click="handleEdit"
+              class="w-full sm:w-auto"
+            >
+              <Edit class="h-4 w-4 mr-2" />
+              <span class="hidden sm:inline">Edit User</span>
+              <span class="sm:hidden">Edit</span>
+            </Button>
+          </div>
         </div>
 
         <!-- Main Content Grid - Full Width -->
@@ -502,48 +514,6 @@ const getLocaleDisplay = (locale: string) => {
 
           <!-- Right Column - Actions, Account Activity & System Information -->
           <div class="space-y-6">
-            <!-- Actions Card -->
-            <div class="bg-card rounded-lg border shadow-sm">
-              <div class="p-4 sm:p-6">
-                <div class="space-y-3">
-                  <Button
-                    v-if="canEdit"
-                    @click="handleEdit"
-                    class="w-full"
-                    size="lg"
-                  >
-                    <Edit class="h-4 w-4 mr-2" />
-                    Edit User
-                  </Button>
-                  
-                  <Button
-                    @click="handleBack"
-                    variant="outline"
-                    class="w-full"
-                  >
-                    <ArrowLeft class="h-4 w-4 mr-2" />
-                    Back to List
-                  </Button>
-
-                  <Button
-                    v-if="isAdmin && !isViewingSelf"
-                    type="button"
-                    variant="destructive"
-                    @click="openDeleteDialog"
-                    class="w-full"
-                  >
-                    <Trash2 class="h-4 w-4 mr-2" />
-                    Delete User
-                  </Button>
-
-                  <div v-if="isViewingSelf" class="text-xs text-muted-foreground text-center p-2 bg-muted/30 rounded">
-                    You cannot delete your own account
-                  </div>
-
-                </div>
-              </div>
-            </div>
-
             <!-- Account Activity -->
             <div class="bg-card rounded-lg border shadow-sm">
               <div class="p-4 sm:p-6 border-b">
@@ -627,6 +597,28 @@ const getLocaleDisplay = (locale: string) => {
                         <span>{{ user.two_factor_confirmed_at ? 'Enabled' : 'Disabled' }}</span>
                       </div>
                     </Badge>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Delete User Card -->
+            <div class="bg-card rounded-lg border shadow-sm border-destructive/50">
+              <div class="p-4 sm:p-6">
+                <div class="space-y-3">
+                  <Button
+                    v-if="isAdmin && !isViewingSelf"
+                    type="button"
+                    variant="destructive"
+                    @click="openDeleteDialog"
+                    class="w-full"
+                  >
+                    <Trash2 class="h-4 w-4 mr-2" />
+                    Delete User
+                  </Button>
+
+                  <div v-if="isViewingSelf" class="text-xs text-muted-foreground text-center p-2 bg-muted/30 rounded">
+                    You cannot delete your own account
                   </div>
                 </div>
               </div>
