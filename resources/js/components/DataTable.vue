@@ -34,7 +34,8 @@ import {
   DropdownMenuContent,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
-import { Search, X, Columns, RotateCw, ChevronLeft, ChevronRight } from "lucide-vue-next"
+import Paginator from '@/components/Paginator.vue'
+import { Search, X, Columns, RotateCw } from "lucide-vue-next"
 
 interface DataTableProps<TData> {
   data: TData[]
@@ -50,11 +51,18 @@ interface DataTableProps<TData> {
   pageSizeOptions?: number[]
   onRowClick?: (row: TData) => void
   title?: string
+  // New props for external pagination control
+  currentPage?: number
+  total?: number
+  onPageChange?: (page: number) => void
+  onPageSizeChange?: (size: number) => void
 }
 
 interface DataTableEmits {
   (e: 'update:searchQuery', value: string): void
   (e: 'row-selection-change', selectedRows: any[]): void
+  (e: 'page-change', page: number): void
+  (e: 'page-size-change', size: number): void
 }
 
 const props = withDefaults(defineProps<DataTableProps<any>>(), {
@@ -67,6 +75,8 @@ const props = withDefaults(defineProps<DataTableProps<any>>(), {
   pageSize: 10,
   pageSizeOptions: () => [5, 10, 20, 50],
   title: '',
+  currentPage: 1,
+  total: 0,
 })
 
 const emit = defineEmits<DataTableEmits>()
@@ -85,7 +95,9 @@ const sorting = ref<SortingState>([])
 const columnFilters = ref<ColumnFiltersState>([])
 const columnVisibility = ref<VisibilityState>({})
 const rowSelection = ref({})
-const pagination = ref<PaginationState>({
+
+// For internal pagination (when not using external control)
+const internalPagination = ref<PaginationState>({
   pageIndex: 0,
   pageSize: props.pageSize,
 })
@@ -128,30 +140,30 @@ watch(rowSelection, (newSelection) => {
   emit('row-selection-change', selectedRows)
 })
 
-// Watch pagination changes
-watch(() => props.pageSize, (newSize) => {
-  pagination.value.pageSize = newSize
-})
+// Determine if we're using external pagination control
+const usingExternalPagination = computed(() => 
+  props.enablePagination && props.onPageChange && props.onPageSizeChange
+)
 
 const table = useVueTable({
   data: props.data,
   columns: props.columns,
   getCoreRowModel: getCoreRowModel(),
-  getPaginationRowModel: getPaginationRowModel(),
+  getPaginationRowModel: props.enablePagination && !usingExternalPagination.value ? getPaginationRowModel() : undefined,
   getSortedRowModel: getSortedRowModel(),
   getFilteredRowModel: getFilteredRowModel(),
   onSortingChange: (updaterOrValue) => valueUpdater(updaterOrValue, sorting),
   onColumnFiltersChange: (updaterOrValue) => valueUpdater(updaterOrValue, columnFilters),
   onColumnVisibilityChange: (updaterOrValue) => valueUpdater(updaterOrValue, columnVisibility),
   onRowSelectionChange: (updaterOrValue) => valueUpdater(updaterOrValue, rowSelection),
-  onPaginationChange: (updaterOrValue) => valueUpdater(updaterOrValue, pagination),
+  onPaginationChange: props.enablePagination && !usingExternalPagination.value ? (updaterOrValue) => valueUpdater(updaterOrValue, internalPagination) : undefined,
   enableRowSelection: props.enableRowSelection,
   state: {
     get sorting() { return sorting.value },
     get columnFilters() { return columnFilters.value },
     get columnVisibility() { return columnVisibility.value },
     get rowSelection() { return rowSelection.value },
-    get pagination() { return pagination.value },
+    get pagination() { return usingExternalPagination.value ? undefined : internalPagination.value },
   },
 })
 
@@ -161,15 +173,19 @@ const selectedRowCount = computed(() =>
 )
 
 const totalRowCount = computed(() => 
-  table.getFilteredRowModel().rows.length
+  usingExternalPagination.value ? props.total : table.getFilteredRowModel().rows.length
 )
 
 const pageCount = computed(() => 
-  table.getPageCount()
+  usingExternalPagination.value ? Math.ceil(props.total / props.pageSize) : table.getPageCount()
 )
 
 const currentPage = computed(() => 
-  table.getState().pagination.pageIndex + 1
+  usingExternalPagination.value ? props.currentPage : table.getState().pagination.pageIndex + 1
+)
+
+const currentPageSize = computed(() => 
+  usingExternalPagination.value ? props.pageSize : table.getState().pagination.pageSize
 )
 
 // Check if search is active
@@ -178,18 +194,6 @@ const hasSearchQuery = computed(() => {
 })
 
 // Methods
-const nextPage = () => {
-  table.nextPage()
-}
-
-const previousPage = () => {
-  table.previousPage()
-}
-
-const goToPage = (page: number) => {
-  table.setPageIndex(page - 1)
-}
-
 const handleRowClick = (row: any) => {
   if (props.onRowClick) {
     props.onRowClick(row.original)
@@ -201,6 +205,25 @@ const clearSearch = () => {
   emit('update:searchQuery', '')
   if (props.onSearch) {
     props.onSearch('')
+  }
+}
+
+// Pagination handlers for external control
+const handlePageChange = (page: number) => {
+  if (usingExternalPagination.value) {
+    emit('page-change', page)
+  } else {
+    table.setPageIndex(page - 1)
+  }
+}
+
+// Fix the parameter type for handlePageSizeChange
+const handlePageSizeChange = (value: string | number) => {
+  const size = typeof value === 'string' ? parseInt(value, 10) : value
+  if (usingExternalPagination.value) {
+    emit('page-size-change', size)
+  } else {
+    table.setPageSize(size)
   }
 }
 </script>
@@ -366,7 +389,31 @@ const clearSearch = () => {
     </div>
 
     <!-- Footer with Selection Info and Pagination -->
-    <div class="flex flex-col sm:flex-row items-center justify-between p-4 border-t gap-4">
+    <div v-if="enablePagination" class="border-t">
+      <!-- Selection Info -->
+      <div v-if="enableRowSelection && selectedRowCount > 0" class="flex items-center gap-2 p-4 border-b">
+        <Badge variant="secondary" class="px-2 py-1 text-xs">
+          {{ selectedRowCount }} selected
+        </Badge>
+        <span class="text-sm text-muted-foreground">
+          of {{ totalRowCount }} total row(s)
+        </span>
+      </div>
+
+      <!-- Pagination -->
+      <Paginator
+        :current-page="currentPage"
+        :total="totalRowCount"
+        :page-size="currentPageSize"
+        :loading="loading"
+        :page-size-options="pageSizeOptions"
+        @page-change="handlePageChange"
+        @page-size-change="handlePageSizeChange"
+      />
+    </div>
+
+    <!-- Simple footer when no pagination -->
+    <div v-else class="flex flex-col sm:flex-row items-center justify-between p-4 border-t gap-4">
       <!-- Selection Info -->
       <div v-if="enableRowSelection && selectedRowCount > 0" class="flex-1">
         <div class="flex items-center gap-2">
@@ -378,52 +425,11 @@ const clearSearch = () => {
           </span>
         </div>
       </div>
-      <!-- Refresh/Loading Button -->
-              <Button 
-                v-if="loading" 
-                variant="outline" 
-                size="sm" 
-                disabled
-                class="flex items-center gap-2"
-              >
-                <RotateCw class="h-4 w-4 animate-spin" />
-                Loading...
-              </Button>
+      
       <div v-else class="flex-1">
         <span class="text-sm text-muted-foreground">
           {{ totalRowCount }} row(s) total
         </span>
-      </div>
-
-      <!-- Pagination -->
-      <div v-if="enablePagination && pageCount > 1" class="flex items-center space-x-2">
-        <Button
-          variant="outline"
-          size="sm"
-          :disabled="!table.getCanPreviousPage()"
-          @click="previousPage"
-          class="pagination-button flex items-center gap-1"
-        >
-          <ChevronLeft class="h-4 w-4" />
-          Previous
-        </Button>
-        
-        <div class="flex items-center space-x-2 px-3">
-          <span class="text-sm text-muted-foreground whitespace-nowrap">
-            Page <span class="font-medium text-foreground">{{ currentPage }}</span> of {{ pageCount }}
-          </span>
-        </div>
-
-        <Button
-          variant="outline"
-          size="sm"
-          :disabled="!table.getCanNextPage()"
-          @click="nextPage"
-          class="pagination-button flex items-center gap-1"
-        >
-          Next
-          <ChevronRight class="h-4 w-4" />
-        </Button>
       </div>
     </div>
   </div>
@@ -471,23 +477,5 @@ const clearSearch = () => {
   background: hsl(var(--background));
   border: 1px solid hsl(var(--border));
   box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
-}
-
-/* Pagination button styles */
-.pagination-button {
-  border: 1px solid hsl(var(--border));
-  background: hsl(var(--background));
-  color: hsl(var(--foreground));
-  transition: all 0.15s ease-in-out;
-}
-
-.pagination-button:hover:not(:disabled) {
-  background: hsl(var(--muted));
-  border-color: hsl(var(--input));
-}
-
-.pagination-button:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
 }
 </style>

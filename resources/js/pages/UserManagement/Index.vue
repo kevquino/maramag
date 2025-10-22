@@ -3,7 +3,7 @@ import AppLayout from '@/layouts/AppLayout.vue';
 import { dashboard } from '@/routes';
 import { type BreadcrumbItem } from '@/types';
 import { type ColumnDef } from "@tanstack/vue-table"
-import { Eye, Edit, Trash2, UserX, UserCheck, Mail, Building, Shield, Calendar, Filter, Search, X, ChevronDown, Plus, CheckCircle, XCircle, User } from "lucide-vue-next"
+import { Eye, Edit, Trash2, UserX, UserCheck, Mail, Building, Calendar, Filter, Search, X, ChevronDown, Plus, CheckCircle, XCircle } from "lucide-vue-next"
 import { h, ref, watch, nextTick, onMounted, computed } from "vue"
 import { router, Head, Link, usePage } from '@inertiajs/vue3'
 import { toast } from 'vue-sonner'
@@ -26,7 +26,6 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip"
 import DataTable from '@/components/DataTable.vue'
-import DataTablePagination from '@/components/DataTablePagination.vue'
 import {
   AlertDialog,
   AlertDialogAction,
@@ -60,9 +59,9 @@ interface FlashMessages {
   info?: string;
 }
 
-const props = defineProps<{
+interface Props {
   users: {
-    data: any[]
+    data: User[]
     current_page: number
     last_page: number
     per_page: number
@@ -77,7 +76,9 @@ const props = defineProps<{
   roleOptions: Record<string, string>
   officeOptions: Record<string, string>
   statusOptions: Record<string, string>
-}>();
+}
+
+const props = defineProps<Props>();
 
 const page = usePage();
 
@@ -167,7 +168,8 @@ let searchTimeout: number | null = null
 // Function to reload the entire page with current filters
 const reloadPage = () => {
   const params: any = {
-    page: currentPage.value
+    page: currentPage.value,
+    per_page: pageSize.value
   }
 
   if (searchQuery.value) params.search = searchQuery.value
@@ -229,24 +231,16 @@ const clearFilters = () => {
   reloadPage()
 }
 
-// Updated pagination handlers
+// Pagination handlers
 const handlePageChange = (page: number) => {
   currentPage.value = page
   reloadPage()
 }
 
-const handlePreviousPage = () => {
-  if (currentPage.value > 1) {
-    currentPage.value--
-    reloadPage()
-  }
-}
-
-const handleNextPage = () => {
-  if (currentPage.value < Math.ceil(total.value / pageSize.value)) {
-    currentPage.value++
-    reloadPage()
-  }
+const handlePageSizeChange = (size: number) => {
+  pageSize.value = size
+  currentPage.value = 1
+  reloadPage()
 }
 
 // Delete handler
@@ -429,14 +423,6 @@ const columns: ColumnDef<User>[] = [
       const user = row.original;
       const avatarUrl = getAvatarUrl(user.avatar);
       const initials = getInitials(user.name);
-      
-      // Debug log to check avatar data
-      console.log('User avatar data:', {
-        name: user.name,
-        avatar: user.avatar,
-        avatarUrl: avatarUrl,
-        initials: initials
-      });
       
       return h("div", { class: "flex items-start space-x-3" }, [
         // Avatar with image or initials
@@ -715,7 +701,7 @@ onMounted(() => {
                 </DropdownMenuCheckboxItem>
                 <DropdownMenuSeparator />
                 <DropdownMenuCheckboxItem
-                  v-for="(label, value) in roleOptions"
+                  v-for="(label, value) in props.roleOptions"
                   :key="value"
                   :model-value="isRoleSelected(value)"
                   @update:model-value="() => handleRoleFilter(value)"
@@ -751,7 +737,7 @@ onMounted(() => {
                 </DropdownMenuCheckboxItem>
                 <DropdownMenuSeparator />
                 <DropdownMenuCheckboxItem
-                  v-for="(label, value) in officeOptions"
+                  v-for="(label, value) in props.officeOptions"
                   :key="value"
                   :model-value="isOfficeSelected(value)"
                   @update:model-value="() => handleOfficeFilter(value)"
@@ -787,7 +773,7 @@ onMounted(() => {
                 </DropdownMenuCheckboxItem>
                 <DropdownMenuSeparator />
                 <DropdownMenuCheckboxItem
-                  v-for="(label, value) in statusOptions"
+                  v-for="(label, value) in props.statusOptions"
                   :key="value"
                   :model-value="isStatusSelected(value)"
                   @update:model-value="() => handleStatusFilter(value)"
@@ -812,58 +798,10 @@ onMounted(() => {
           </div>
         </div>
 
-        <!-- Active Filters Display -->
-        <div v-if="roleFilter || officeFilter || statusFilter" class="mt-4 flex flex-wrap gap-2">
-          <div 
-            v-if="roleFilter" 
-            class="inline-flex items-center gap-1 bg-primary/10 text-primary px-2 py-1 rounded-md text-sm"
-          >
-            Role: {{ roleOptions[roleFilter] }}
-            <button 
-              @click="handleRoleFilter('')"
-              class="hover:bg-primary/20 rounded-full p-0.5"
-              :disabled="loading"
-            >
-              ×
-            </button>
-          </div>
-          <div 
-            v-if="officeFilter" 
-            class="inline-flex items-center gap-1 bg-primary/10 text-primary px-2 py-1 rounded-md text-sm"
-          >
-            Office: {{ officeOptions[officeFilter] }}
-            <button 
-              @click="handleOfficeFilter('')"
-              class="hover:bg-primary/20 rounded-full p-0.5"
-              :disabled="loading"
-            >
-              ×
-            </button>
-          </div>
-          <div 
-            v-if="statusFilter" 
-            class="inline-flex items-center gap-1 bg-primary/10 text-primary px-2 py-1 rounded-md text-sm"
-          >
-            Status: {{ statusOptions[statusFilter] }}
-            <button 
-              @click="handleStatusFilter('')"
-              class="hover:bg-primary/20 rounded-full p-0.5"
-              :disabled="loading"
-            >
-              ×
-            </button>
-          </div>
-        </div>
-
-        <!-- Results Count -->
-        <div class="flex justify-between items-center pt-4 border-t mt-4">
-          <div class="text-sm text-muted-foreground">
-            Showing {{ total }} user(s)
-          </div>
-        </div>
+        
       </div>
 
-      <!-- Table using reusable component -->
+      <!-- Table with external pagination control -->
       <DataTable
         :data="data"
         :columns="columns"
@@ -871,17 +809,12 @@ onMounted(() => {
         :search-query="searchQuery"
         :enable-row-selection="false"
         :enable-column-visibility="false"
-      />
-
-      <!-- Updated Pagination using reusable component with shadcn-vue pagination -->
-      <DataTablePagination
+        :enable-pagination="true"
         :current-page="currentPage"
         :total="total"
         :page-size="pageSize"
-        :loading="loading"
         @page-change="handlePageChange"
-        @previous="handlePreviousPage"
-        @next="handleNextPage"
+        @page-size-change="handlePageSizeChange"
       />
     </div>
 
