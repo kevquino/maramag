@@ -3,7 +3,7 @@ import AppLayout from '@/layouts/AppLayout.vue';
 import { dashboard } from '@/routes';
 import { type BreadcrumbItem } from '@/types';
 import { type ColumnDef } from "@tanstack/vue-table"
-import { Eye, Edit, Trash2, UserX, UserCheck, Mail, Building, Calendar, Filter, Search, X, ChevronDown, Plus, CheckCircle, XCircle } from "lucide-vue-next"
+import { Eye, Edit, Trash2, UserX, UserCheck, Mail, Building, Filter, Search, X, ChevronDown, Plus, CheckCircle, XCircle } from "lucide-vue-next"
 import { h, ref, watch, nextTick, onMounted, computed } from "vue"
 import { router, Head, Link, usePage } from '@inertiajs/vue3'
 import { toast } from 'vue-sonner'
@@ -25,7 +25,7 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip"
-import DataTable from '@/components/DataTable.vue'
+import DataTable, { type CardViewConfig } from '@/components/DataTable.vue'
 import {
   AlertDialog,
   AlertDialogAction,
@@ -164,6 +164,36 @@ const deleting = ref(false)
 
 // Search timeout reference
 let searchTimeout: number | null = null
+
+// Card view configuration - UPDATED with status action
+const cardViewConfig: CardViewConfig = {
+  enabled: true,
+  breakpoint: 768,
+  fields: {
+    role: {
+      label: 'Role',
+      format: (value: string) => props.roleOptions[value] || value
+    },
+    office: {
+      label: 'Office',
+      format: (value: string) => value || 'Not assigned'
+    },
+    is_active: {
+      label: 'Status',
+      format: (value: boolean) => value ? 'Active' : 'Inactive'
+    },
+    email_verified_at: {
+      label: 'Email Verified',
+      format: (value: string | null) => value ? 'Verified' : 'Unverified'
+    }
+  },
+  actions: {
+    view: true,
+    edit: true,
+    delete: true,
+    status: true  // Added status toggle action
+  }
+}
 
 // Function to reload the entire page with current filters
 const reloadPage = () => {
@@ -312,6 +342,29 @@ const handleStatusToggle = (user: User) => {
   })
 }
 
+// Row click handler to navigate to Show.vue
+const handleRowClick = (user: User) => {
+  router.get(`/user-management/${user.id}`)
+}
+
+// Action handlers for card view
+const handleView = (user: User) => {
+  router.get(`/user-management/${user.id}`)
+}
+
+const handleEdit = (user: User) => {
+  router.get(`/user-management/${user.id}/edit`)
+}
+
+const handleDelete = (user: User) => {
+  openDeleteDialog(user)
+}
+
+// Status toggle handler for card view
+const handleStatusToggleCard = (user: User) => {
+  handleStatusToggle(user)
+}
+
 // Utility functions
 const formatDate = (dateString: string | null) => {
   if (!dateString) return 'Never'
@@ -319,17 +372,6 @@ const formatDate = (dateString: string | null) => {
     year: 'numeric',
     month: 'short',
     day: 'numeric'
-  })
-}
-
-const formatLastLogin = (dateString: string | null) => {
-  if (!dateString) return 'Never logged in'
-  return new Date(dateString).toLocaleDateString('en-US', {
-    year: 'numeric',
-    month: 'short',
-    day: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit'
   })
 }
 
@@ -414,7 +456,7 @@ const getVerificationBadgeVariant = (isVerified: boolean) => {
   return isVerified ? 'default' : 'outline'
 }
 
-// Columns definition with proper alignment
+// Columns definition with proper alignment - REMOVED Last Login and Created columns
 const columns: ColumnDef<User>[] = [
   {
     accessorKey: "name",
@@ -509,33 +551,30 @@ const columns: ColumnDef<User>[] = [
     },
   },
   {
-    accessorKey: "last_login_at",
-    header: () => h("div", { class: "text-center font-semibold" }, "Last Login"),
-    cell: ({ row }) => h("div", { class: "flex items-center justify-center space-x-1" }, [
-      h(Calendar, { class: "h-3 w-3 text-muted-foreground flex-shrink-0" }),
-      h("span", { class: "text-sm" }, formatDate(row.original.last_login_at))
-    ]),
-  },
-  {
-    accessorKey: "created_at",
-    header: () => h("div", { class: "text-center font-semibold" }, "Created"),
-    cell: ({ row }) => h("div", { class: "text-center" }, [
-      h("span", { class: "text-sm text-muted-foreground" }, formatDate(row.original.created_at))
-    ]),
-  },
-  {
     id: "actions",
     header: () => h("div", { class: "text-center font-semibold" }, "Actions"),
     cell: ({ row }) => {
       const user = row.original
       const isCurrentUser = user.id === (page.props.auth.user as any).id
 
-      const handleView = () => {
+      const handleView = (e: Event) => {
+        e.stopPropagation()
         router.get(`/user-management/${user.id}`)
       }
 
-      const handleEdit = () => {
+      const handleEdit = (e: Event) => {
+        e.stopPropagation()
         router.get(`/user-management/${user.id}/edit`)
+      }
+
+      const handleStatus = (e: Event) => {
+        e.stopPropagation()
+        handleStatusToggle(user)
+      }
+
+      const handleDelete = (e: Event) => {
+        e.stopPropagation()
+        openDeleteDialog(user)
       }
 
       const getStatusButtonClass = (isActive: boolean) => {
@@ -577,7 +616,7 @@ const columns: ColumnDef<User>[] = [
               h(Button, {
                 variant: "ghost",
                 size: "sm",
-                onClick: () => handleStatusToggle(user),
+                onClick: handleStatus,
                 class: `h-8 w-8 p-0 hover:bg-accent ${getStatusButtonClass(user.is_active)}`,
                 disabled: isCurrentUser
               }, [
@@ -595,7 +634,7 @@ const columns: ColumnDef<User>[] = [
               h(Button, {
                 variant: "ghost",
                 size: "sm",
-                onClick: () => openDeleteDialog(user),
+                onClick: handleDelete,
                 class: "h-8 w-8 p-0 text-destructive hover:text-destructive/90 hover:bg-accent",
                 disabled: isCurrentUser
               }, [
@@ -797,11 +836,9 @@ onMounted(() => {
             </Button>
           </div>
         </div>
-
-        
       </div>
 
-      <!-- Table with external pagination control -->
+      <!-- DataTable with Card View Support -->
       <DataTable
         :data="data"
         :columns="columns"
@@ -813,9 +850,42 @@ onMounted(() => {
         :current-page="currentPage"
         :total="total"
         :page-size="pageSize"
+        :card-view="cardViewConfig"
         @page-change="handlePageChange"
         @page-size-change="handlePageSizeChange"
-      />
+        @row-click="handleRowClick"
+        @view="handleView"
+        @edit="handleEdit"
+        @delete="handleDelete"
+        @status-toggle="handleStatusToggleCard"
+      >
+        <!-- Custom card header slot -->
+        <template #card-header="{ row }">
+          <div class="flex items-center space-x-3 flex-1 min-w-0">
+            <!-- Avatar -->
+            <div class="flex-shrink-0">
+              <div v-if="getAvatarUrl(row.avatar)" class="w-10 h-10 rounded-full bg-cover bg-center border-2 border-border shadow-sm" 
+                   :style="{ backgroundImage: `url(${getAvatarUrl(row.avatar)})` }">
+              </div>
+              <div v-else class="w-10 h-10 rounded-full bg-gradient-to-br from-primary to-primary/80 flex items-center justify-center text-white font-semibold text-sm border-2 border-border shadow-sm">
+                <span class="text-sm font-medium">{{ getInitials(row.name) }}</span>
+              </div>
+            </div>
+            <!-- User info -->
+            <div class="flex-1 min-w-0">
+              <h4 class="font-semibold text-foreground truncate">{{ row.name || 'No name' }}</h4>
+              <p class="text-sm text-muted-foreground truncate">{{ row.email }}</p>
+            </div>
+          </div>
+        </template>
+
+        <!-- Custom card badge slot -->
+        <template #card-badge="{ row }">
+          <Badge :variant="getStatusBadgeVariant(row.is_active)" class="text-xs whitespace-nowrap">
+            {{ row.is_active ? "Active" : "Inactive" }}
+          </Badge>
+        </template>
+      </DataTable>
     </div>
 
     <!-- Delete Confirmation Dialog -->

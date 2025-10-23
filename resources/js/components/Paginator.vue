@@ -134,27 +134,7 @@ const handleLastPage = () => {
       <!-- Pagination Controls -->
       <div class="flex items-center space-x-2">
         <!-- Rows per page -->
-        <div v-if="showPageSizeOptions" class="flex items-center space-x-2">
-          <span class="text-sm text-muted-foreground whitespace-nowrap">Rows per page:</span>
-          <Select 
-            :model-value="pageSize.toString()" 
-            @update:model-value="handlePageSizeChange"
-            :disabled="loading"
-          >
-            <SelectTrigger class="w-20 h-8">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem 
-                v-for="option in pageSizeOptions" 
-                :key="option" 
-                :value="option.toString()"
-              >
-                {{ option }}
-              </SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
+        
 
         <!-- Page Navigation -->
         <div class="flex items-center space-x-1">
