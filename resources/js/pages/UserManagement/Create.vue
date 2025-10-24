@@ -2,23 +2,16 @@
 import AppLayout from '@/layouts/AppLayout.vue';
 import { dashboard } from '@/routes';
 import { type BreadcrumbItem } from '@/types';
-import { Head, router, useForm, usePage } from '@inertiajs/vue3';
-import { ArrowLeft, Save, User, Mail, Shield, Building, CheckSquare, Square } from 'lucide-vue-next';
-import { ref, computed, watch, nextTick, onMounted } from 'vue';
+import { Head, router, usePage } from '@inertiajs/vue3';
+import { ArrowLeft, Save, User, Mail, Shield, Building, CheckSquare, Phone, Key, Info, X, RotateCcw } from 'lucide-vue-next';
+import { ref, computed, onMounted } from 'vue';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
-import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
-import { Switch } from '@/components/ui/switch';
-import { Checkbox } from '@/components/ui/checkbox';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Switch } from '@/components/ui/switch';
 import { toast } from 'vue-sonner';
 import {
   AlertDialog,
@@ -31,78 +24,23 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
 
+// Composables
+import { useFlashMessages } from '@/composables/useFlashMessages';
+
 // Props
 const props = defineProps<{
   roleOptions: Record<string, string>;
   officeOptions: Record<string, string>;
   permissionOptions: Record<string, any>;
   permissionGroups: Record<string, any>;
+  canEditPermissions?: boolean;
 }>();
 
 const page = usePage();
-
-// Define flash message interface
-interface FlashMessages {
-  success?: string;
-  error?: string;
-  warning?: string;
-  info?: string;
-}
-
-// Track shown flash messages to prevent duplicates
-const shownFlashMessages = ref<Set<string>>(new Set());
-
-// Function to show toast and track it
-const showToast = (message: string, type: 'success' | 'error' | 'warning' | 'info') => {
-  const messageKey = `${type}:${message}`;
-  
-  if (!shownFlashMessages.value.has(messageKey)) {
-    shownFlashMessages.value.add(messageKey);
-    
-    nextTick(() => {
-      switch (type) {
-        case 'success':
-          toast.success(message);
-          break;
-        case 'error':
-          toast.error(message);
-          break;
-        case 'warning':
-          toast.warning(message);
-          break;
-        case 'info':
-          toast.info(message);
-          break;
-      }
-      
-      // Remove from tracking after a delay to allow same message to show again later
-      setTimeout(() => {
-        shownFlashMessages.value.delete(messageKey);
-      }, 1000);
-    });
-  }
-};
-
-// Watch for flash messages and show toasts with proper typing
-watch(() => page.props.flash as FlashMessages | undefined, (newFlash, oldFlash) => {
-  const currentFlash = newFlash as FlashMessages | undefined;
-  
-  if (currentFlash?.success) {
-    showToast(currentFlash.success, 'success');
-  }
-  if (currentFlash?.error) {
-    showToast(currentFlash.error, 'error');
-  }
-  if (currentFlash?.warning) {
-    showToast(currentFlash.warning, 'warning');
-  }
-  if (currentFlash?.info) {
-    showToast(currentFlash.info, 'info');
-  }
-}, { deep: true, immediate: true });
+useFlashMessages();
 
 // Breadcrumbs
-const breadcrumbs: BreadcrumbItem[] = [
+const breadcrumbs = computed<BreadcrumbItem[]>(() => [
   {
     title: 'Dashboard',
     href: dashboard().url,
@@ -115,108 +53,141 @@ const breadcrumbs: BreadcrumbItem[] = [
     title: 'Create User',
     href: '/user-management/create',
   },
-];
+]);
 
-// Form handling
-const form = useForm({
+// Form state
+const formState = ref({
   name: '',
   email: '',
+  phone: '',
   role: '',
   office: '',
+  position: '',
   is_active: true,
   password: '',
   password_confirmation: '',
-  permissions: [] as string[],
+  permissions: ['dashboard'], // Default permissions - always include dashboard
+  processing: false,
+  errors: {} as Record<string, string>,
+});
+
+// Debug: Log permissions data
+onMounted(() => {
+  console.log('Permission options:', props.permissionOptions);
+  console.log('Permission groups:', props.permissionGroups);
+  console.log('Can edit permissions:', props.canEditPermissions);
 });
 
 // Dialog states
 const saveDialogOpen = ref(false);
 const cancelDialogOpen = ref(false);
 
-// Permission selection
-const selectAllPermissions = ref(false);
-
-// Get ungrouped permissions
-const getUngroupedPermissions = () => {
-  const allPermissions = Object.keys(props.permissionOptions);
-  const groupedPermissions = Object.values(props.permissionGroups).flatMap((group: any) => group.permissions);
-  return allPermissions.filter(permission => !groupedPermissions.includes(permission));
-};
-
-// Toggle all permissions - FIXED: Properly handles the switch state
-const toggleAllPermissions = (checked: boolean) => {
-  selectAllPermissions.value = checked;
+// Permission management
+const togglePermission = (permission: string) => {
+  // Dashboard permission cannot be changed - always enabled
+  if (permission === 'dashboard') return;
   
-  if (checked) {
-    // Add all permissions
-    form.permissions = Object.keys(props.permissionOptions);
-  } else {
-    // Remove all permissions
-    form.permissions = [];
-  }
-};
-
-// Toggle single permission using switch
-const togglePermission = (permission: string, checked: boolean) => {
-  if (checked) {
-    // Add permission if not already present
-    if (!form.permissions.includes(permission)) {
-      form.permissions.push(permission);
-    }
-  } else {
+  const currentPermissions = [...formState.value.permissions];
+  const index = currentPermissions.indexOf(permission);
+  
+  if (index > -1) {
     // Remove permission
-    const index = form.permissions.indexOf(permission);
-    if (index > -1) {
-      form.permissions.splice(index, 1);
-    }
+    currentPermissions.splice(index, 1);
+  } else {
+    // Add permission
+    currentPermissions.push(permission);
   }
   
-  // Update select all state based on current permissions
-  updateSelectAllState();
+  // Update the form state
+  formState.value.permissions = currentPermissions;
 };
 
-// Check if permission is enabled
-const isPermissionEnabled = (permission: string) => {
-  return form.permissions.includes(permission);
+const hasPermission = (permission: string) => {
+  // Dashboard permission is always enabled
+  if (permission === 'dashboard') return true;
+  
+  return formState.value.permissions.includes(permission);
 };
-
-// Update select all state based on current permissions - FIXED: Proper state calculation
-const updateSelectAllState = () => {
-  const allPermissions = Object.keys(props.permissionOptions);
-  selectAllPermissions.value = form.permissions.length === allPermissions.length && allPermissions.length > 0;
-};
-
-// Watch permissions to update select all - FIXED: Use the proper update function
-watch(() => form.permissions, () => {
-  updateSelectAllState();
-}, { deep: true });
 
 // Check if form has unsaved changes
 const hasUnsavedChanges = computed(() => {
-  return !!form.name || !!form.email || !!form.role || !!form.office || !!form.password || form.permissions.length > 0;
+  const form = formState.value;
+  
+  return form.name !== '' ||
+         form.email !== '' ||
+         form.phone !== '' ||
+         form.role !== '' ||
+         form.office !== '' ||
+         form.position !== '' ||
+         form.password !== '' ||
+         form.password_confirmation !== '' ||
+         form.permissions.length > 1; // More than just dashboard
+});
+
+// Check if save button should be disabled
+const isSaveDisabled = computed(() => {
+  return !hasUnsavedChanges.value || formState.value.processing;
 });
 
 // Get user summary for confirmation dialogs
 const userSummary = computed(() => {
+  const form = formState.value;
+  
+  const isSuperAdmin = form.role === 'superadmin';
+  
   return {
     name: form.name || 'Unnamed User',
     email: form.email || 'No email',
     role: props.roleOptions[form.role] || form.role || 'Not selected',
     office: props.officeOptions[form.office] || form.office || 'Not selected',
     status: form.is_active ? 'Active' : 'Inactive',
-    permissions: form.permissions.length,
+    hasPassword: !!form.password,
+    permissions: isSuperAdmin ? 'All (Superadmin)' : `${form.permissions.length} enabled`,
   };
+});
+
+// Check if current user is admin
+const isAdmin = computed(() => {
+  const authUser = page.props.auth.user as any;
+  return authUser.role === 'admin' || authUser.role === 'superadmin';
+});
+
+// Check if current user is superadmin
+const isCurrentUserSuperAdmin = computed(() => {
+  const authUser = page.props.auth.user as any;
+  return authUser.role === 'superadmin';
 });
 
 // Handle form submission
 const submit = () => {
-  form.post('/user-management', {
+  formState.value.processing = true;
+
+  // Prepare form data
+  const formData = {
+    name: formState.value.name,
+    email: formState.value.email,
+    phone: formState.value.phone,
+    role: formState.value.role,
+    office: formState.value.office,
+    position: formState.value.position,
+    is_active: formState.value.is_active,
+    password: formState.value.password,
+    password_confirmation: formState.value.password_confirmation,
+    permissions: formState.value.permissions,
+  };
+
+  console.log('Submitting form data:', formData); // Debug log
+
+  router.post('/user-management', formData, {
     preserveScroll: true,
     onSuccess: () => {
-      // Don't show toast here - let the server flash message handle it
+      formState.value.processing = false;
+      // Success handled by flash messages - controller will redirect to index
     },
-    onError: (errors) => {
-      // Don't show generic error toast here - let form.errors handle specific errors
+    onError: (errors: any) => {
+      formState.value.processing = false;
+      formState.value.errors = errors;
+      console.error('Form submission errors:', errors); // Debug log
     },
   });
 };
@@ -229,42 +200,32 @@ const confirmSave = () => {
 
 // Open save confirmation
 const openSaveDialog = () => {
-  if (validateForm()) {
-    saveDialogOpen.value = true;
+  // Basic validation
+  if (!formState.value.name?.trim()) {
+    toast.error('Name is required');
+    return;
   }
-};
-
-// Validate form before submission
-const validateForm = (): boolean => {
-  if (!form.name.trim()) {
-    showToast('Please enter a name for the user.', 'error');
-    return false;
+  if (!formState.value.email?.trim()) {
+    toast.error('Email is required');
+    return;
   }
-  if (!form.email.trim()) {
-    showToast('Please enter an email address.', 'error');
-    return false;
+  if (!formState.value.role?.trim()) {
+    toast.error('Role is required');
+    return;
   }
-  if (!form.role) {
-    showToast('Please select a role.', 'error');
-    return false;
+  if (!formState.value.office?.trim()) {
+    toast.error('Office is required');
+    return;
   }
-  if (!form.office) {
-    showToast('Please select an office.', 'error');
-    return false;
+  if (!formState.value.password?.trim()) {
+    toast.error('Password is required');
+    return;
   }
-  if (!form.password) {
-    showToast('Please enter a password.', 'error');
-    return false;
+  if (formState.value.password !== formState.value.password_confirmation) {
+    toast.error('Passwords do not match');
+    return;
   }
-  if (form.password.length < 8) {
-    showToast('Password must be at least 8 characters long.', 'error');
-    return false;
-  }
-  if (form.password !== form.password_confirmation) {
-    showToast('Password confirmation does not match.', 'error');
-    return false;
-  }
-  return true;
+  saveDialogOpen.value = true;
 };
 
 // Open cancel confirmation
@@ -282,21 +243,14 @@ const confirmCancel = () => {
   cancel();
 };
 
-// Cancel and go back
+// Cancel and go back to user management list
 const cancel = () => {
   router.visit('/user-management');
 };
-
-// Clear shown messages when component unmounts
-onMounted(() => {
-  shownFlashMessages.value.clear();
-  // Initialize select all state
-  updateSelectAllState();
-});
 </script>
 
 <template>
-  <Head title="Create New User" />
+  <Head title="Create User" />
 
   <AppLayout :breadcrumbs="breadcrumbs">
     <div class="w-full p-4 sm:p-6">
@@ -304,16 +258,36 @@ onMounted(() => {
         <!-- Header -->
         <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6">
           <div class="flex-1 min-w-0">
-            <h1 class="text-2xl sm:text-3xl font-bold text-foreground truncate">Create New User</h1>
-            <p class="text-muted-foreground mt-1">Add a new user to the system</p>
+            <div class="flex items-center space-x-2">
+              <Button
+                variant="ghost"
+                size="sm"
+                @click="cancel"
+                class="h-8 w-8 p-0"
+              >
+                <ArrowLeft class="h-4 w-4" />
+              </Button>
+              <h1 class="text-2xl sm:text-3xl font-bold text-foreground truncate">Create New User</h1>
+            </div>
+            <p class="text-muted-foreground mt-1">Create a new user account with specific permissions</p>
+            <div v-if="isCurrentUserSuperAdmin" class="mt-2">
+              <Badge variant="outline" class="bg-purple-50 text-purple-700 border-purple-200 dark:bg-purple-950 dark:text-purple-300 dark:border-purple-800">
+                Super Admin Creating User
+              </Badge>
+            </div>
+            <div v-else-if="isAdmin" class="mt-2">
+              <Badge variant="outline" class="bg-green-50 text-green-700 border-green-200 dark:bg-green-950 dark:text-green-300 dark:border-green-800">
+                Admin Creating User
+              </Badge>
+            </div>
           </div>
         </div>
 
         <!-- Error summary -->
-        <div v-if="Object.keys(form.errors).length" class="mb-6 p-4 bg-destructive/15 border border-destructive/50 text-destructive rounded-lg">
+        <div v-if="formState.errors && Object.keys(formState.errors).length" class="mb-6 p-4 bg-destructive/15 border border-destructive/50 text-destructive rounded-lg">
           <h3 class="font-semibold mb-2">Please fix the following errors:</h3>
           <ul class="list-disc list-inside space-y-1">
-            <li v-for="(error, field) in form.errors" :key="field">
+            <li v-for="(error, field) in formState.errors" :key="field">
               {{ error }}
             </li>
           </ul>
@@ -324,182 +298,280 @@ onMounted(() => {
           <!-- Left Column - Main Content -->
           <div class="xl:col-span-2 space-y-6">
             <!-- Basic Information Card -->
-            <div class="bg-card rounded-lg border shadow-sm">
-              <div class="p-4 sm:p-6 border-b">
-                <h2 class="text-lg font-semibold">Basic Information</h2>
-              </div>
-              <div class="p-4 sm:p-6 space-y-6">
-                <!-- Name -->
-                <div class="space-y-2">
-                  <Label for="name" class="text-sm font-medium">Full Name *</Label>
-                  <div class="relative">
-                    <User class="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                    <Input
-                      id="name"
-                      v-model="form.name"
-                      type="text"
-                      placeholder="Enter full name"
-                      :class="form.errors.name ? 'border-destructive pl-10' : 'pl-10'"
-                      class="w-full"
-                    />
-                  </div>
-                  <p v-if="form.errors.name" class="text-sm text-destructive">{{ form.errors.name }}</p>
-                </div>
-
-                <!-- Email -->
-                <div class="space-y-2">
-                  <Label for="email" class="text-sm font-medium">Email Address *</Label>
-                  <div class="relative">
-                    <Mail class="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                    <Input
-                      id="email"
-                      v-model="form.email"
-                      type="email"
-                      placeholder="Enter email address"
-                      :class="form.errors.email ? 'border-destructive pl-10' : 'pl-10'"
-                      class="w-full"
-                    />
-                  </div>
-                  <p v-if="form.errors.email" class="text-sm text-destructive">{{ form.errors.email }}</p>
-                </div>
-
-                <!-- Password -->
-                <div class="space-y-4">
-                  <Label class="text-sm font-medium">Password *</Label>
-                  
-                  <div class="space-y-2">
-                    <Label for="password" class="text-sm font-medium">Password</Label>
-                    <Input
-                      id="password"
-                      v-model="form.password"
-                      type="password"
-                      placeholder="Enter password"
-                      :class="form.errors.password ? 'border-destructive' : ''"
-                      class="w-full"
-                    />
-                    <p v-if="form.errors.password" class="text-sm text-destructive">{{ form.errors.password }}</p>
-                    <p class="text-xs text-muted-foreground">
-                      Password must be at least 8 characters long
-                    </p>
-                  </div>
-
-                  <div class="space-y-2">
-                    <Label for="password_confirmation" class="text-sm font-medium">Confirm Password</Label>
-                    <Input
-                      id="password_confirmation"
-                      v-model="form.password_confirmation"
-                      type="password"
-                      placeholder="Confirm password"
-                      :class="form.errors.password_confirmation ? 'border-destructive' : ''"
-                      class="w-full"
-                    />
-                    <p v-if="form.errors.password_confirmation" class="text-sm text-destructive">{{ form.errors.password_confirmation }}</p>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            <!-- Permissions Card -->
             <Card>
+              <CardHeader>
+                <CardTitle class="flex items-center gap-2">
+                  <User class="h-5 w-5 text-blue-600" />
+                  Basic Information
+                </CardTitle>
+                <CardDescription>
+                  Enter user's personal and contact information
+                </CardDescription>
+              </CardHeader>
+              <CardContent class="space-y-6">
+                <!-- Name and Email -->
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <!-- Name -->
+                  <div class="space-y-2">
+                    <Label for="name" class="text-sm font-medium">Full Name *</Label>
+                    <div class="relative">
+                      <User class="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                      <Input
+                        id="name"
+                        v-model="formState.name"
+                        type="text"
+                        placeholder="Enter full name"
+                        :class="formState.errors?.name ? 'border-destructive pl-10' : 'pl-10'"
+                        class="w-full"
+                      />
+                    </div>
+                    <p v-if="formState.errors?.name" class="text-sm text-destructive">{{ formState.errors.name }}</p>
+                  </div>
+
+                  <!-- Email -->
+                  <div class="space-y-2">
+                    <Label for="email" class="text-sm font-medium">Email Address *</Label>
+                    <div class="relative">
+                      <Mail class="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                      <Input
+                        id="email"
+                        v-model="formState.email"
+                        type="email"
+                        placeholder="Enter email address"
+                        :class="formState.errors?.email ? 'border-destructive pl-10' : 'pl-10'"
+                        class="w-full"
+                      />
+                    </div>
+                    <p v-if="formState.errors?.email" class="text-sm text-destructive">{{ formState.errors.email }}</p>
+                  </div>
+                </div>
+
+                <!-- Phone and Position -->
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <!-- Phone -->
+                  <div class="space-y-2">
+                    <Label for="phone" class="text-sm font-medium">Phone Number</Label>
+                    <div class="relative">
+                      <Phone class="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                      <Input
+                        id="phone"
+                        v-model="formState.phone"
+                        type="tel"
+                        placeholder="Enter phone number"
+                        :class="formState.errors?.phone ? 'border-destructive pl-10' : 'pl-10'"
+                        class="w-full"
+                      />
+                    </div>
+                    <p v-if="formState.errors?.phone" class="text-sm text-destructive">{{ formState.errors.phone }}</p>
+                  </div>
+
+                  <!-- Position -->
+                  <div class="space-y-2">
+                    <Label for="position" class="text-sm font-medium">Position</Label>
+                    <Input
+                      id="position"
+                      v-model="formState.position"
+                      type="text"
+                      placeholder="Enter position"
+                      :class="formState.errors?.position ? 'border-destructive' : ''"
+                      class="w-full"
+                    />
+                    <p v-if="formState.errors?.position" class="text-sm text-destructive">{{ formState.errors.position }}</p>
+                  </div>
+                </div>
+
+                <!-- Password Section -->
+                <div class="space-y-4 pt-4 border-t">
+                  <Label class="text-sm font-medium flex items-center gap-2">
+                    <Key class="h-4 w-4" />
+                    Set Password
+                  </Label>
+                  <p class="text-sm text-muted-foreground">
+                    Create a secure password for the user
+                  </p>
+                  
+                  <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div class="space-y-2">
+                      <Label for="password" class="text-sm font-medium">Password *</Label>
+                      <Input
+                        id="password"
+                        v-model="formState.password"
+                        type="password"
+                        placeholder="Enter password"
+                        :class="formState.errors?.password ? 'border-destructive' : ''"
+                        class="w-full"
+                      />
+                      <p v-if="formState.errors?.password" class="text-sm text-destructive">{{ formState.errors.password }}</p>
+                    </div>
+
+                    <div class="space-y-2">
+                      <Label for="password_confirmation" class="text-sm font-medium">Confirm Password *</Label>
+                      <Input
+                        id="password_confirmation"
+                        v-model="formState.password_confirmation"
+                        type="password"
+                        placeholder="Confirm password"
+                        :class="formState.errors?.password_confirmation ? 'border-destructive' : ''"
+                        class="w-full"
+                      />
+                      <p v-if="formState.errors?.password_confirmation" class="text-sm text-destructive">{{ formState.errors.password_confirmation }}</p>
+                    </div>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+
+            <!-- Permissions Card - EXACTLY SAME AS EDIT.VUE -->
+            <Card v-if="(isAdmin || isCurrentUserSuperAdmin) && formState.role !== 'superadmin' && permissionOptions && Object.keys(permissionOptions).length > 0">
               <CardHeader>
                 <CardTitle class="flex items-center gap-2">
                   <CheckSquare class="h-5 w-5 text-blue-600" />
                   Module Permissions
+                  <Badge variant="outline" class="ml-2">
+                    {{ formState.permissions.length }} enabled
+                  </Badge>
                 </CardTitle>
                 <CardDescription>
-                  Select which modules and pages this user can access
+                  Click on permission cards to enable or disable access
                 </CardDescription>
               </CardHeader>
-              <CardContent class="space-y-6">
-                <!-- Select All Toggle -->
-                <div class="flex items-center justify-between p-4 border rounded-lg bg-muted/30">
-                  <div class="space-y-0.5">
-                    <Label class="text-base font-medium">Select All Permissions</Label>
-                    <p class="text-sm text-muted-foreground">
-                      Enable or disable all permissions at once
-                    </p>
-                  </div>
-                  <Switch
-                    :model-value="selectAllPermissions"
-                    @update:model-value="toggleAllPermissions"
-                  />
-                </div>
-
-                <!-- Permissions List - Single Box -->
-                <div class="border rounded-lg">
-                  <div class="p-4 bg-muted/30 border-b">
-                    <h3 class="font-semibold text-sm">All Permissions</h3>
-                    <p class="text-xs text-muted-foreground mt-1">
-                      {{ Object.keys(permissionOptions).length }} total permissions • {{ form.permissions.length }} enabled
-                    </p>
-                  </div>
-                  
-                  <div class="p-4 space-y-4">
-                    <!-- Group permissions by category for better organization -->
-                    <div v-for="(group, groupKey) in permissionGroups" :key="groupKey" class="space-y-3">
-                      <div class="flex items-center space-x-2">
-                        <div class="h-px flex-1 bg-border"></div>
-                        <span class="text-xs font-medium text-muted-foreground px-2 bg-background">{{ group.label }}</span>
-                        <div class="h-px flex-1 bg-border"></div>
-                      </div>
-                      
-                      <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
-                        <div
-                          v-for="permissionKey in group.permissions"
-                          :key="permissionKey"
-                          class="flex flex-row items-center justify-between rounded-lg border p-4 transition-colors hover:bg-muted/30 cursor-pointer"
+              <CardContent class="space-y-4">
+                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                  <div
+                    v-for="(permission, key) in permissionOptions"
+                    :key="key"
+                    class="flex items-start p-4 border-2 rounded-lg transition-all duration-200 group cursor-pointer select-none"
+                    :class="[
+                      hasPermission(key) 
+                        ? 'bg-green-50 border-green-500 dark:bg-green-950/50 dark:border-green-600 shadow-md scale-[1.02]' 
+                        : 'bg-muted/30 border-muted hover:bg-muted/50',
+                      key !== 'dashboard' ? 'hover:border-green-300 dark:hover:border-green-700' : '',
+                      key === 'dashboard' ? 'cursor-not-allowed opacity-80' : ''
+                    ]"
+                    @click="key !== 'dashboard' && togglePermission(key)"
+                  >
+                    <div class="flex-1 min-w-0">
+                      <div class="flex items-center justify-between mb-2">
+                        <Label 
+                          class="text-sm font-semibold text-foreground"
+                          :class="key === 'dashboard' ? 'cursor-not-allowed' : 'cursor-pointer'"
                         >
-                          <div class="space-y-0.5 flex-1">
-                            <Label class="text-base font-medium cursor-pointer">
-                              {{ permissionOptions[permissionKey]?.label || permissionKey }}
-                            </Label>
-                            <p class="text-sm text-muted-foreground">
-                              {{ permissionOptions[permissionKey]?.description || 'No description available' }}
-                            </p>
-                          </div>
-                          <Switch
-                            :model-value="isPermissionEnabled(permissionKey)"
-                            @update:model-value="(checked: boolean) => togglePermission(permissionKey, checked)"
-                          />
-                        </div>
-                      </div>
-                    </div>
-
-                    <!-- Handle any permissions not in groups -->
-                    <div v-if="getUngroupedPermissions().length > 0" class="space-y-3">
-                      <div class="flex items-center space-x-2">
-                        <div class="h-px flex-1 bg-border"></div>
-                        <span class="text-xs font-medium text-muted-foreground px-2 bg-background">Other Permissions</span>
-                        <div class="h-px flex-1 bg-border"></div>
-                      </div>
-                      
-                      <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
-                        <div
-                          v-for="permissionKey in getUngroupedPermissions()"
-                          :key="permissionKey"
-                          class="flex flex-row items-center justify-between rounded-lg border p-4 transition-colors hover:bg-muted/30 cursor-pointer"
+                          {{ permission.label }}
+                          
+                        </Label>
+                        <div 
+                          v-if="hasPermission(key)"
+                          class="flex-shrink-0 w-5 h-5 bg-green-500 rounded-full flex items-center justify-center"
                         >
-                          <div class="space-y-0.5 flex-1">
-                            <Label class="text-base font-medium cursor-pointer">
-                              {{ permissionOptions[permissionKey]?.label || permissionKey }}
-                            </Label>
-                            <p class="text-sm text-muted-foreground">
-                              {{ permissionOptions[permissionKey]?.description || 'No description available' }}
-                            </p>
-                          </div>
-                          <Switch
-                            :model-value="isPermissionEnabled(permissionKey)"
-                            @update:model-value="(checked: boolean) => togglePermission(permissionKey, checked)"
-                          />
+                          <CheckSquare class="h-3 w-3 text-white" />
                         </div>
+                        <div 
+                          v-else
+                          class="flex-shrink-0 w-5 h-5 border-2 border-muted-foreground/30 rounded"
+                        ></div>
                       </div>
+                      <p class="text-xs text-muted-foreground">
+                        {{ permission.description }}
+                      </p>
                     </div>
                   </div>
                 </div>
 
-                <div v-if="form.errors.permissions" class="text-sm text-destructive">
-                  {{ form.errors.permissions }}
+                <!-- Quick Actions -->
+                <div class="flex flex-wrap gap-2 pt-4 border-t">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    @click="formState.permissions = Object.keys(permissionOptions)"
+                    class="text-xs"
+                  >
+                    <CheckSquare class="h-3 w-3 mr-1" />
+                    Grant All Permissions
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    @click="formState.permissions = ['dashboard']"
+                    class="text-xs"
+                  >
+                    <X class="h-3 w-3 mr-1" />
+                    Revoke All Permissions
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    @click="formState.permissions = ['dashboard']"
+                    class="text-xs"
+                  >
+                    <RotateCcw class="h-3 w-3 mr-1" />
+                    Reset to Default
+                  </Button>
                 </div>
+
+                <!-- Permission editing instructions -->
+                <div class="p-3 bg-blue-50 border border-blue-200 dark:bg-blue-950/30 dark:border-blue-800 rounded-lg">
+                  <div class="flex items-start space-x-2">
+                    <Info class="h-4 w-4 text-blue-600 dark:text-blue-400 mt-0.5 flex-shrink-0" />
+                    <div class="flex-1">
+                      <p class="text-sm text-blue-800 dark:text-blue-300 font-medium">Permission Management</p>
+                      <p class="text-xs text-blue-700 dark:text-blue-400 mt-1">
+                        Click on permission cards to enable or disable access. Green cards with checkmarks indicate enabled permissions. 
+                        <span class="font-semibold">Dashboard permission is always enabled and cannot be changed.</span>
+                      </p>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- Debug information -->
+                <div v-if="formState.permissions.length > 0" class="p-3 bg-muted border border-muted-foreground/20 rounded-lg">
+                  <p class="text-sm font-medium">Current Permissions ({{ formState.permissions.length }}):</p>
+                  <p class="text-xs text-muted-foreground mt-1">{{ formState.permissions.join(', ') }}</p>
+                </div>
+              </CardContent>
+            </Card>
+
+            <!-- Super Admin Notice Card -->
+            <Card v-if="formState.role === 'superadmin'" class="bg-gradient-to-r from-purple-50 to-pink-50 border-purple-200 dark:from-purple-950/30 dark:to-pink-950/30 dark:border-purple-800">
+              <CardHeader>
+                <CardTitle class="flex items-center gap-2 text-purple-900 dark:text-purple-200">
+                  <Shield class="h-5 w-5" />
+                  Super Administrator Access
+                </CardTitle>
+                <CardDescription class="text-purple-700 dark:text-purple-300">
+                  This user will have full access to all system features and modules
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div class="flex items-center space-x-3 p-3 bg-white/50 dark:bg-gray-900/50 rounded-lg border border-purple-200 dark:border-purple-800">
+                  <CheckSquare class="h-5 w-5 text-purple-600 dark:text-purple-400" />
+                  <div>
+                    <p class="font-medium text-purple-900 dark:text-purple-200">Full System Access</p>
+                    <p class="text-sm text-purple-700 dark:text-purple-300">
+                      Super administrators automatically have all permissions enabled and can access every part of the system.
+                    </p>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+
+            <!-- No Permissions Available Card -->
+            <Card v-if="(isAdmin || isCurrentUserSuperAdmin) && formState.role !== 'superadmin' && (!permissionOptions || Object.keys(permissionOptions).length === 0)" class="bg-amber-50 border-amber-200 dark:bg-amber-950/30 dark:border-amber-800">
+              <CardHeader>
+                <CardTitle class="flex items-center gap-2 text-amber-900 dark:text-amber-200">
+                  <CheckSquare class="h-5 w-5" />
+                  No Permissions Available
+                </CardTitle>
+                <CardDescription class="text-amber-700 dark:text-amber-300">
+                  Permission options are not configured in the system
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <p class="text-sm text-amber-800 dark:text-amber-300">
+                  Please check your User model configuration to ensure permission options are properly defined.
+                </p>
               </CardContent>
             </Card>
           </div>
@@ -507,11 +579,17 @@ onMounted(() => {
           <!-- Right Column - Sidebar -->
           <div class="space-y-6">
             <!-- Settings Card -->
-            <div class="bg-card rounded-lg border shadow-sm">
-              <div class="p-4 sm:p-6 border-b">
-                <h2 class="text-lg font-semibold">Settings</h2>
-              </div>
-              <div class="p-4 sm:p-6 space-y-6">
+            <Card>
+              <CardHeader>
+                <CardTitle class="flex items-center gap-2">
+                  <Shield class="h-5 w-5 text-blue-600" />
+                  Account Settings
+                </CardTitle>
+                <CardDescription>
+                  Configure user role and account status
+                </CardDescription>
+              </CardHeader>
+              <CardContent class="space-y-6">
                 <!-- Role -->
                 <div class="space-y-2">
                   <Label for="role" class="text-sm font-medium">Role *</Label>
@@ -520,7 +598,10 @@ onMounted(() => {
                       <Shield class="h-4 w-4 text-muted-foreground" />
                     </div>
                     <div class="flex-1">
-                      <Select v-model="form.role" :class="form.errors.role ? 'border-destructive' : ''">
+                      <Select 
+                        v-model="formState.role" 
+                        :class="formState.errors?.role ? 'border-destructive' : ''"
+                      >
                         <SelectTrigger class="w-full">
                           <SelectValue placeholder="Select a role" />
                         </SelectTrigger>
@@ -532,7 +613,7 @@ onMounted(() => {
                           >
                             <div class="flex items-center space-x-2">
                               <Badge 
-                                :variant="value === 'admin' ? 'destructive' : value === 'PIO Officer' ? 'default' : value === 'PIO Staff' ? 'secondary' : 'outline'"
+                                :variant="value === 'admin' || value === 'superadmin' ? 'destructive' : value === 'PIO Officer' ? 'default' : value === 'PIO Staff' ? 'secondary' : 'outline'"
                                 class="text-xs"
                               >
                                 {{ label }}
@@ -543,7 +624,7 @@ onMounted(() => {
                       </Select>
                     </div>
                   </div>
-                  <p v-if="form.errors.role" class="text-sm text-destructive">{{ form.errors.role }}</p>
+                  <p v-if="formState.errors?.role" class="text-sm text-destructive">{{ formState.errors.role }}</p>
                 </div>
 
                 <!-- Office -->
@@ -554,7 +635,10 @@ onMounted(() => {
                       <Building class="h-4 w-4 text-muted-foreground" />
                     </div>
                     <div class="flex-1">
-                      <Select v-model="form.office" :class="form.errors.office ? 'border-destructive' : ''">
+                      <Select 
+                        v-model="formState.office" 
+                        :class="formState.errors?.office ? 'border-destructive' : ''"
+                      >
                         <SelectTrigger class="w-full">
                           <SelectValue placeholder="Select an office" />
                         </SelectTrigger>
@@ -570,7 +654,7 @@ onMounted(() => {
                       </Select>
                     </div>
                   </div>
-                  <p v-if="form.errors.office" class="text-sm text-destructive">{{ form.errors.office }}</p>
+                  <p v-if="formState.errors?.office" class="text-sm text-destructive">{{ formState.errors.office }}</p>
                 </div>
 
                 <!-- Status Toggle -->
@@ -580,65 +664,37 @@ onMounted(() => {
                     <div class="space-y-0.5">
                       <Label class="text-sm font-medium">Active Account</Label>
                       <p class="text-xs text-muted-foreground">
-                        User can login and access system immediately
+                        {{ formState.is_active ? 'User can login and access system' : 'User cannot login to system' }}
                       </p>
                     </div>
                     <Switch
-                      v-model="form.is_active"
+                      v-model="formState.is_active"
                       aria-label="Toggle account status"
                     />
                   </div>
                 </div>
-              </div>
-            </div>
-
-            <!-- Summary Card -->
-            <Card>
-              <CardHeader>
-                <CardTitle class="text-sm">Summary</CardTitle>
-              </CardHeader>
-              <CardContent class="space-y-3 text-sm">
-                <div class="flex justify-between">
-                  <span class="text-muted-foreground">Selected Permissions:</span>
-                  <span class="font-medium">{{ form.permissions.length }}</span>
-                </div>
-                <div class="flex justify-between">
-                  <span class="text-muted-foreground">Role:</span>
-                  <Badge 
-                    v-if="form.role"
-                    :variant="form.role === 'admin' ? 'destructive' : form.role === 'PIO Officer' ? 'default' : form.role === 'PIO Staff' ? 'secondary' : 'outline'"
-                    class="text-xs"
-                  >
-                    {{ roleOptions[form.role] || form.role }}
-                  </Badge>
-                  <span v-else class="text-muted-foreground text-xs">Not selected</span>
-                </div>
-                <div class="flex justify-between">
-                  <span class="text-muted-foreground">Office:</span>
-                  <span class="font-medium text-right text-xs">{{ officeOptions[form.office] || form.office || 'Not selected' }}</span>
-                </div>
-                <div class="flex justify-between">
-                  <span class="text-muted-foreground">Status:</span>
-                  <Badge :variant="form.is_active ? 'default' : 'secondary'" class="text-xs">
-                    {{ form.is_active ? 'Active' : 'Inactive' }}
-                  </Badge>
-                </div>
               </CardContent>
             </Card>
 
-            <!-- Actions Card -->
-            <div class="bg-card rounded-lg border shadow-sm">
-              <div class="p-4 sm:p-6">
+            <!-- Actions Card - MOVED BELOW ACCOUNT SETTINGS -->
+            <Card>
+              <CardHeader>
+                <CardTitle>Actions</CardTitle>
+                <CardDescription>
+                  Create user account or cancel
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
                 <div class="space-y-3">
                   <Button
                     type="button"
                     @click="openSaveDialog"
-                    :disabled="form.processing"
+                    :disabled="isSaveDisabled"
                     class="w-full"
                     size="lg"
                   >
                     <Save class="h-4 w-4 mr-2" />
-                    <span v-if="form.processing">Creating...</span>
+                    <span v-if="formState.processing">Creating...</span>
                     <span v-else>Create User</span>
                   </Button>
                   
@@ -646,28 +702,79 @@ onMounted(() => {
                     type="button"
                     variant="outline"
                     @click="openCancelDialog"
-                    :disabled="form.processing"
+                    :disabled="formState.processing"
                     class="w-full"
                   >
                     <ArrowLeft class="h-4 w-4 mr-2" />
                     Cancel
                   </Button>
                 </div>
-              </div>
-            </div>
+              </CardContent>
+            </Card>
+
+            <!-- User Summary Card -->
+            <Card>
+              <CardHeader>
+                <CardTitle class="flex items-center gap-2">
+                  <User class="h-5 w-5 text-blue-600" />
+                  User Summary
+                </CardTitle>
+                <CardDescription>
+                  Preview of the user account being created
+                </CardDescription>
+              </CardHeader>
+              <CardContent class="space-y-4">
+                <div class="grid grid-cols-1 gap-3 text-sm">
+                  <div class="flex justify-between items-center p-2 bg-muted/30 rounded">
+                    <span class="font-medium text-muted-foreground">Name:</span>
+                    <span>{{ formState.name || 'Not set' }}</span>
+                  </div>
+                  <div class="flex justify-between items-center p-2 bg-muted/30 rounded">
+                    <span class="font-medium text-muted-foreground">Email:</span>
+                    <span>{{ formState.email || 'Not set' }}</span>
+                  </div>
+                  <div class="flex justify-between items-center p-2 bg-muted/30 rounded">
+                    <span class="font-medium text-muted-foreground">Role:</span>
+                    <span>{{ roleOptions[formState.role] || 'Not selected' }}</span>
+                  </div>
+                  <div class="flex justify-between items-center p-2 bg-muted/30 rounded">
+                    <span class="font-medium text-muted-foreground">Office:</span>
+                    <span>{{ officeOptions[formState.office] || 'Not selected' }}</span>
+                  </div>
+                  <div class="flex justify-between items-center p-2 bg-muted/30 rounded">
+                    <span class="font-medium text-muted-foreground">Status:</span>
+                    <span :class="formState.is_active ? 'text-green-600 dark:text-green-400' : 'text-amber-600 dark:text-amber-400'">
+                      {{ formState.is_active ? 'Active' : 'Inactive' }}
+                    </span>
+                  </div>
+                  <div class="flex justify-between items-center p-2 bg-muted/30 rounded">
+                    <span class="font-medium text-muted-foreground">Password:</span>
+                    <span :class="formState.password ? 'text-green-600 dark:text-green-400' : 'text-destructive'">
+                      {{ formState.password ? 'Set' : 'Not set' }}
+                    </span>
+                  </div>
+                  <div class="flex justify-between items-center p-2 bg-muted/30 rounded">
+                    <span class="font-medium text-muted-foreground">Permissions:</span>
+                    <span>
+                      {{ formState.role === 'superadmin' ? 'All' : `${formState.permissions.length} enabled` }}
+                    </span>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
           </div>
         </div>
       </div>
     </div>
 
-    <!-- Create User Confirmation Dialog -->
+    <!-- Save Changes Confirmation Dialog -->
     <AlertDialog v-model:open="saveDialogOpen">
       <AlertDialogContent>
         <AlertDialogHeader>
           <AlertDialogTitle>Create User?</AlertDialogTitle>
           <AlertDialogDescription>
-            Are you sure you want to create this new user account?
-            <div class="mt-4 p-3 bg-muted rounded-lg space-y-2">
+            Are you sure you want to create this user account?
+            <div v-if="userSummary" class="mt-4 p-3 bg-muted rounded-lg space-y-2">
               <div class="flex justify-between">
                 <span class="font-medium">Name:</span>
                 <span>{{ userSummary.name }}</span>
@@ -689,8 +796,12 @@ onMounted(() => {
                 <span>{{ userSummary.status }}</span>
               </div>
               <div class="flex justify-between">
+                <span class="font-medium">Password:</span>
+                <span>{{ userSummary.hasPassword ? 'Set' : 'Not set' }}</span>
+              </div>
+              <div class="flex justify-between">
                 <span class="font-medium">Permissions:</span>
-                <span>{{ userSummary.permissions }} modules</span>
+                <span>{{ userSummary.permissions }}</span>
               </div>
             </div>
           </AlertDialogDescription>
@@ -722,7 +833,7 @@ onMounted(() => {
         </AlertDialogHeader>
         <AlertDialogFooter>
           <AlertDialogCancel @click="cancelDialogOpen = false">
-            Continue Editing
+            Continue Creating
           </AlertDialogCancel>
           <AlertDialogAction @click="confirmCancel">
             Cancel Creation

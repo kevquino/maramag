@@ -6,10 +6,8 @@ import { type ColumnDef } from "@tanstack/vue-table"
 import { Eye, Edit, Trash2, UserX, UserCheck, Mail, Building, Filter, Search, X, ChevronDown, Plus, CheckCircle, XCircle } from "lucide-vue-next"
 import { h, ref, watch, nextTick, onMounted, computed } from "vue"
 import { router, Head, Link, usePage } from '@inertiajs/vue3'
-import { toast } from 'vue-sonner'
 
 import { Button } from "@/components/ui/button"
-import { Badge } from "@/components/ui/badge"
 import { Input } from "@/components/ui/input"
 import {
   DropdownMenu,
@@ -37,6 +35,14 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog"
 
+// Composables
+import { useFlashMessages } from '@/composables/useFlashMessages'
+
+// Components
+import UserAvatar from '@/components/UserAvatar.vue'
+import UserStatusBadge from '@/components/UserStatusBadge.vue'
+import UserRoleBadge from '@/components/UserRoleBadge.vue'
+
 export interface User {
   id: string
   name: string
@@ -49,14 +55,6 @@ export interface User {
   email_verified_at: string | null
   created_at: string
   updated_at: string
-}
-
-// Define flash message interface
-interface FlashMessages {
-  success?: string;
-  error?: string;
-  warning?: string;
-  info?: string;
 }
 
 interface Props {
@@ -81,58 +79,7 @@ interface Props {
 const props = defineProps<Props>();
 
 const page = usePage();
-
-// Track shown flash messages to prevent duplicates
-const shownFlashMessages = ref<Set<string>>(new Set());
-
-// Function to show toast and track it
-const showToast = (message: string, type: 'success' | 'error' | 'warning' | 'info') => {
-  const messageKey = `${type}:${message}`;
-  
-  if (!shownFlashMessages.value.has(messageKey)) {
-    shownFlashMessages.value.add(messageKey);
-    
-    nextTick(() => {
-      switch (type) {
-        case 'success':
-          toast.success(message);
-          break;
-        case 'error':
-          toast.error(message);
-          break;
-        case 'warning':
-          toast.warning(message);
-          break;
-        case 'info':
-          toast.info(message);
-          break;
-      }
-      
-      // Remove from tracking after a delay to allow same message to show again later
-      setTimeout(() => {
-        shownFlashMessages.value.delete(messageKey);
-      }, 1000);
-    });
-  }
-};
-
-// Watch for flash messages and show toasts with proper typing
-watch(() => page.props.flash as FlashMessages | undefined, (newFlash, oldFlash) => {
-  const currentFlash = newFlash as FlashMessages | undefined;
-  
-  if (currentFlash?.success) {
-    showToast(currentFlash.success, 'success');
-  }
-  if (currentFlash?.error) {
-    showToast(currentFlash.error, 'error');
-  }
-  if (currentFlash?.warning) {
-    showToast(currentFlash.warning, 'warning');
-  }
-  if (currentFlash?.info) {
-    showToast(currentFlash.info, 'info');
-  }
-}, { deep: true, immediate: true });
+useFlashMessages();
 
 const breadcrumbs: BreadcrumbItem[] = [
   {
@@ -165,7 +112,7 @@ const deleting = ref(false)
 // Search timeout reference
 let searchTimeout: number | null = null
 
-// Card view configuration - UPDATED with status action
+// Card view configuration
 const cardViewConfig: CardViewConfig = {
   enabled: true,
   breakpoint: 768,
@@ -191,7 +138,7 @@ const cardViewConfig: CardViewConfig = {
     view: true,
     edit: true,
     delete: true,
-    status: true  // Added status toggle action
+    status: true
   }
 }
 
@@ -285,21 +232,9 @@ const deleteUser = () => {
     onSuccess: () => {
       deleteDialogOpen.value = false
       userToDelete.value = null
-      // Don't show toast here - let the server flash message handle it
     },
-    onError: (errors) => {
+    onError: (errors: any) => {
       console.error('Delete error:', errors)
-      let errorMsg = 'Failed to delete user'
-      
-      if (typeof errors === 'string') {
-        errorMsg = errors
-      } else if (errors && typeof errors === 'object' && 'message' in errors) {
-        errorMsg = (errors as any).message
-      } else if (errors && typeof errors === 'object' && 'error' in errors) {
-        errorMsg = (errors as any).error
-      }
-      
-      showToast(errorMsg, 'error')
     },
     onFinish: () => {
       deleting.value = false
@@ -316,7 +251,6 @@ const openDeleteDialog = (user: User) => {
 const handleStatusToggle = (user: User) => {
   // Prevent users from deactivating themselves
   if (user.id === (page.props.auth.user as any).id) {
-    showToast('You cannot deactivate your own account.', 'error')
     return
   }
 
@@ -324,20 +258,10 @@ const handleStatusToggle = (user: User) => {
     preserveScroll: true,
     preserveState: false,
     onSuccess: () => {
-      // Success toast will be shown from server flash message
       reloadPage(); // Refresh the page to show updated status
     },
-    onError: (errors) => {
+    onError: (errors: any) => {
       console.error('Status toggle error:', errors)
-      let errorMsg = 'Failed to toggle user status'
-      if (typeof errors === 'string') {
-        errorMsg = errors
-      } else if (errors && typeof errors === 'object' && 'message' in errors) {
-        errorMsg = (errors as any).message
-      } else if (errors && typeof errors === 'object' && 'error' in errors) {
-        errorMsg = (errors as any).error
-      }
-      showToast(errorMsg, 'error')
     }
   })
 }
@@ -379,26 +303,6 @@ const isEmailVerified = (emailVerifiedAt: string | null) => {
   return !!emailVerifiedAt
 }
 
-// Avatar utility functions
-const getInitials = (name: string): string => {
-  if (!name) return '?'
-  return name
-    .split(' ')
-    .map(part => part.charAt(0).toUpperCase())
-    .slice(0, 2)
-    .join('')
-}
-
-const getAvatarUrl = (avatar: string | null): string | null => {
-  if (!avatar) return null
-  // If avatar is already a full URL, return it
-  if (avatar.startsWith('http')) return avatar
-  // If avatar starts with /images/, return as is (for predefined avatars)
-  if (avatar.startsWith('/images/')) return avatar
-  // Otherwise, assume it's a relative path from storage
-  return `/storage/${avatar}`
-}
-
 // Event handler for input events with proper typing
 const handleSearchInput = (event: Event) => {
   const target = event.target as HTMLInputElement;
@@ -435,61 +339,26 @@ const isStatusSelected = (value: string) => {
   return statusFilter.value === value
 }
 
-// Get badge variant based on role - UPDATED with user role
-const getRoleBadgeVariant = (role: string) => {
-  switch (role) {
-    case 'superadmin': return 'destructive'
-    case 'admin': return 'default'
-    case 'staff': return 'secondary'
-    case 'user': return 'outline' // Added user role
-    default: return 'outline'
-  }
-}
-
-// Get badge variant based on status
-const getStatusBadgeVariant = (isActive: boolean) => {
-  return isActive ? 'default' : 'secondary'
-}
-
 // Get badge variant for email verification
 const getVerificationBadgeVariant = (isVerified: boolean) => {
   return isVerified ? 'default' : 'outline'
 }
 
-// Columns definition with proper alignment - REMOVED Last Login and Created columns
+// Columns definition with proper alignment
 const columns: ColumnDef<User>[] = [
   {
     accessorKey: "name",
     header: () => h("div", { class: "text-left font-semibold" }, "User Details"),
     cell: ({ row }) => {
       const user = row.original;
-      const avatarUrl = getAvatarUrl(user.avatar);
-      const initials = getInitials(user.name);
       
       return h("div", { class: "flex items-start space-x-3" }, [
-        // Avatar with image or initials
-        h("div", { class: "flex-shrink-0 relative" }, [
-          avatarUrl 
-            ? h("img", {
-                src: avatarUrl,
-                alt: user.name,
-                class: "w-10 h-10 rounded-full object-cover border-2 border-border shadow-sm",
-                onError: (e: any) => {
-                  // If image fails to load, fall back to initials
-                  e.target.style.display = 'none';
-                  const parent = e.target.parentElement;
-                  const fallback = document.createElement('div');
-                  fallback.className = 'w-10 h-10 rounded-full bg-gradient-to-br from-primary to-primary/80 flex items-center justify-center text-white font-semibold text-sm border-2 border-border shadow-sm';
-                  fallback.textContent = initials;
-                  parent.appendChild(fallback);
-                }
-              })
-            : h("div", { 
-                class: "w-10 h-10 rounded-full bg-gradient-to-br from-primary to-primary/80 flex items-center justify-center text-white font-semibold text-sm border-2 border-border shadow-sm"
-              }, [
-                h("span", { class: "text-sm font-medium" }, initials)
-              ])
-        ]),
+        // Avatar component
+        h(UserAvatar, {
+          user: user,
+          size: "md"
+        }),
+        // User info
         h("div", { class: "min-w-0 flex-1" }, [
           h("div", { class: "flex items-center space-x-2" }, [
             h("span", { class: "font-medium text-sm text-foreground" }, user.name || 'No name'),
@@ -506,10 +375,10 @@ const columns: ColumnDef<User>[] = [
     accessorKey: "role",
     header: () => h("div", { class: "text-center font-semibold" }, "Role"),
     cell: ({ row }) => h("div", { class: "flex justify-center" }, [
-      h(Badge, { 
-        variant: getRoleBadgeVariant(row.original.role),
-        class: "text-xs"
-      }, props.roleOptions[row.original.role] || row.original.role)
+      h(UserRoleBadge, {
+        role: row.original.role,
+        size: "sm"
+      })
     ]),
   },
   {
@@ -526,10 +395,10 @@ const columns: ColumnDef<User>[] = [
     cell: ({ row }) => {
       const user = row.original
       return h("div", { class: "flex justify-center" }, [
-        h(Badge, { 
-          variant: getStatusBadgeVariant(user.is_active),
-          class: "text-xs"
-        }, user.is_active ? "Active" : "Inactive")
+        h(UserStatusBadge, {
+          isActive: user.is_active,
+          size: "sm"
+        })
       ])
     },
   },
@@ -543,10 +412,7 @@ const columns: ColumnDef<User>[] = [
         h(isVerified ? CheckCircle : XCircle, { 
           class: `h-4 w-4 ${isVerified ? 'text-green-600' : 'text-muted-foreground'}`
         }),
-        h(Badge, { 
-          variant: getVerificationBadgeVariant(isVerified),
-          class: "text-xs"
-        }, isVerified ? "Verified" : "Unverified")
+        h("span", { class: "text-sm" }, isVerified ? "Verified" : "Unverified")
       ])
     },
   },
@@ -668,11 +534,6 @@ watch(() => props.filters, (newFilters) => {
   officeFilter.value = newFilters?.office || ''
   statusFilter.value = newFilters?.status || ''
 }, { deep: true })
-
-// Clear shown messages when component unmounts
-onMounted(() => {
-  shownFlashMessages.value.clear()
-})
 </script>
 
 <template>
@@ -855,18 +716,13 @@ onMounted(() => {
         @delete="handleDelete"
         @status-toggle="handleStatusToggleCard"
       >
-        <!-- Custom card header slot -->
+        <!-- Custom card header slot using UserAvatar component -->
         <template #card-header="{ row }">
           <div class="flex items-center space-x-3 flex-1 min-w-0">
-            <!-- Avatar -->
-            <div class="flex-shrink-0">
-              <div v-if="getAvatarUrl(row.avatar)" class="w-10 h-10 rounded-full bg-cover bg-center border-2 border-border shadow-sm" 
-                   :style="{ backgroundImage: `url(${getAvatarUrl(row.avatar)})` }">
-              </div>
-              <div v-else class="w-10 h-10 rounded-full bg-gradient-to-br from-primary to-primary/80 flex items-center justify-center text-white font-semibold text-sm border-2 border-border shadow-sm">
-                <span class="text-sm font-medium">{{ getInitials(row.name) }}</span>
-              </div>
-            </div>
+            <UserAvatar
+              :user="row"
+              size="md"
+            />
             <!-- User info -->
             <div class="flex-1 min-w-0">
               <h4 class="font-semibold text-foreground truncate">{{ row.name || 'No name' }}</h4>
@@ -875,11 +731,12 @@ onMounted(() => {
           </div>
         </template>
 
-        <!-- Custom card badge slot -->
+        <!-- Custom card badge slot using UserStatusBadge component -->
         <template #card-badge="{ row }">
-          <Badge :variant="getStatusBadgeVariant(row.is_active)" class="text-xs whitespace-nowrap">
-            {{ row.is_active ? "Active" : "Inactive" }}
-          </Badge>
+          <UserStatusBadge
+            :is-active="row.is_active"
+            size="sm"
+          />
         </template>
       </DataTable>
     </div>

@@ -3,12 +3,11 @@ import AppLayout from '@/layouts/AppLayout.vue';
 import { dashboard } from '@/routes';
 import { type BreadcrumbItem } from '@/types';
 import { Head, router, usePage } from '@inertiajs/vue3';
-import { ArrowLeft, Edit, User, Mail, Shield, Building, Calendar, CheckCircle, XCircle, Send, Trash2, CheckSquare, Phone, Globe, Clock, MapPin, Monitor, Key } from 'lucide-vue-next';
+import { ArrowLeft, Edit, Mail, Building, Calendar, CheckCircle, XCircle, Send, Trash2, CheckSquare, Phone, Clock, MapPin, Key, User, Shield } from 'lucide-vue-next';
 import { computed, ref } from 'vue';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { toast } from 'vue-sonner';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -19,6 +18,14 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
+
+// Composables
+import { useFlashMessages } from '@/composables/useFlashMessages'
+
+// Components
+import UserAvatar from '@/components/UserAvatar.vue'
+import UserStatusBadge from '@/components/UserStatusBadge.vue'
+import UserRoleBadge from '@/components/UserRoleBadge.vue'
 
 // Props
 const props = defineProps<{
@@ -47,6 +54,7 @@ const props = defineProps<{
 }>();
 
 const page = usePage();
+useFlashMessages();
 
 // Breadcrumbs
 const breadcrumbs: BreadcrumbItem[] = [
@@ -106,22 +114,15 @@ const formatRelativeTime = (dateString: string | null) => {
 // Check if current user can edit this profile
 const canEdit = computed(() => {
   const authUser = page.props.auth.user as any;
-  // Allow if user is admin, superadmin, or viewing their own profile
   return authUser.role === 'admin' || 
-         authUser.role === 'superadmin' || 
-         authUser.id.toString() === props.user.id.toString();
+    authUser.role === 'superadmin' || 
+    authUser.id.toString() === props.user.id.toString();
 });
 
 // Check if current user is admin
 const isAdmin = computed(() => {
   const authUser = page.props.auth.user as any;
   return authUser.role === 'admin' || authUser.role === 'superadmin';
-});
-
-// Check if current user is superadmin
-const isCurrentUserSuperAdmin = computed(() => {
-  const authUser = page.props.auth.user as any;
-  return authUser.role === 'superadmin';
 });
 
 // Check if user is superadmin
@@ -139,42 +140,6 @@ const handleBack = () => {
   router.visit('/user-management');
 };
 
-// Get role badge variant
-const getRoleBadgeVariant = (role: string) => {
-  switch (role) {
-    case 'superadmin': return 'destructive';
-    case 'admin': return 'destructive';
-    case 'PIO Officer': return 'default';
-    case 'PIO Staff': return 'secondary';
-    default: return 'outline';
-  }
-}
-
-// Get status badge variant
-const getStatusBadgeVariant = (isActive: boolean) => {
-  return isActive ? 'default' : 'secondary';
-}
-
-// Avatar utility functions
-const getInitials = (name: string): string => {
-  if (!name) return '?';
-  return name
-    .split(' ')
-    .map(part => part.charAt(0).toUpperCase())
-    .slice(0, 2)
-    .join('');
-}
-
-const getAvatarUrl = (avatar: string | null): string | undefined => {
-  if (!avatar) return undefined;
-  // If avatar is already a full URL, return it
-  if (avatar.startsWith('http')) return avatar;
-  // If avatar starts with /images/, return as is (for predefined avatars)
-  if (avatar.startsWith('/images/')) return avatar;
-  // Otherwise, assume it's a relative path from storage
-  return `/storage/${avatar}`;
-}
-
 // Resend email verification
 const resendEmailVerification = () => {
   resendingVerification.value = true;
@@ -182,19 +147,10 @@ const resendEmailVerification = () => {
   router.post(`/user-management/${props.user.id}/resend-verification`, {}, {
     preserveScroll: true,
     onSuccess: () => {
-      toast.success('Verification email sent successfully!');
+      // Success handled by flash messages
     },
-    onError: (errors) => {
+    onError: (errors: any) => {
       console.error('Resend verification error:', errors);
-      let errorMsg = 'Failed to send verification email';
-      if (typeof errors === 'string') {
-        errorMsg = errors;
-      } else if (errors && typeof errors === 'object' && 'message' in errors) {
-        errorMsg = (errors as any).message;
-      } else if (errors && typeof errors === 'object' && 'error' in errors) {
-        errorMsg = (errors as any).error;
-      }
-      toast.error(errorMsg);
     },
     onFinish: () => {
       resendingVerification.value = false;
@@ -209,20 +165,16 @@ const deleteUser = async () => {
     router.delete(`/user-management/${props.user.id}`, {
       preserveScroll: false,
       onSuccess: () => {
-        toast.success('User deleted successfully!');
         router.get('/user-management');
       },
-      onError: (errors) => {
-        const errorMsg = errors.message || 'Failed to delete user';
-        toast.error(errorMsg);
+      onError: (errors: any) => {
+        console.error('Delete error:', errors);
         deleting.value = false;
         deleteDialogOpen.value = false;
       },
     });
   } catch (err) {
     console.error('Failed to delete user:', err);
-    const errorMsg = err instanceof Error ? err.message : 'Failed to delete user';
-    toast.error(errorMsg);
     deleting.value = false;
     deleteDialogOpen.value = false;
   }
@@ -238,41 +190,25 @@ const isViewingSelf = computed(() => {
   return props.user.id === (page.props.auth.user as any).id;
 });
 
-// Check if permission should be highlighted (for superadmin)
-const shouldHighlightPermission = (permissionKey: string) => {
+// Check if permission is enabled (for superadmin or specific permissions)
+const hasPermission = (permissionKey: string) => {
+  // Dashboard permission is always enabled
+  if (permissionKey === 'dashboard') return true;
+  
+  // Super admins have all permissions
   if (isSuperAdmin.value) return true;
+  
+  // Check if user has the specific permission
   return props.user.permissions?.includes(permissionKey) || false;
 }
 
-// Get timezone display name
-const getTimezoneDisplay = (timezone: string) => {
-  const timezones: Record<string, string> = {
-    'UTC': 'Coordinated Universal Time (UTC)',
-    'America/New_York': 'Eastern Time (ET)',
-    'America/Chicago': 'Central Time (CT)',
-    'America/Denver': 'Mountain Time (MT)',
-    'America/Los_Angeles': 'Pacific Time (PT)',
-    'Europe/London': 'Greenwich Mean Time (GMT)',
-    'Europe/Paris': 'Central European Time (CET)',
-    'Asia/Tokyo': 'Japan Standard Time (JST)',
-    'Asia/Shanghai': 'China Standard Time (CST)',
-  };
-  return timezones[timezone] || timezone;
-}
-
-// Get locale display name
-const getLocaleDisplay = (locale: string) => {
-  const locales: Record<string, string> = {
-    'en': 'English',
-    'es': 'Spanish',
-    'fr': 'French',
-    'de': 'German',
-    'ja': 'Japanese',
-    'zh': 'Chinese',
-    'tl': 'Filipino',
-  };
-  return locales[locale] || locale;
-}
+// Get enabled permissions count
+const enabledPermissionsCount = computed(() => {
+  if (isSuperAdmin.value) {
+    return Object.keys(props.permissionOptions).length;
+  }
+  return props.user.permissions?.length || 0;
+});
 </script>
 
 <template>
@@ -332,29 +268,23 @@ const getLocaleDisplay = (locale: string) => {
               </div>
               <div class="p-4 sm:p-6">
                 <div class="flex items-start space-x-4">
-                  <!-- Avatar -->
-                  <div class="flex-shrink-0 relative">
-                    <div v-if="getAvatarUrl(user.avatar)" class="w-20 h-20 rounded-full border-2 border-border shadow-sm overflow-hidden">
-                      <img 
-                        :src="getAvatarUrl(user.avatar)" 
-                        :alt="user.name"
-                        class="w-full h-full object-cover"
-                      />
-                    </div>
-                    <div v-else class="w-20 h-20 rounded-full bg-gradient-to-br from-primary to-primary/80 flex items-center justify-center text-white font-semibold text-2xl border-2 border-border shadow-sm">
-                      {{ getInitials(user.name) }}
-                    </div>
-                  </div>
+                  <!-- Avatar Component -->
+                  <UserAvatar
+                    :user="user"
+                    size="xl"
+                  />
                   <div class="flex-1 min-w-0">
                     <h3 class="text-2xl font-bold text-foreground truncate">{{ user.name }}</h3>
                     <p class="text-muted-foreground mt-1 text-lg">{{ user.email }}</p>
                     <div class="flex flex-wrap gap-2 mt-4">
-                      <Badge :variant="getRoleBadgeVariant(user.role)" class="text-sm py-1">
-                        {{ user.role }}
-                      </Badge>
-                      <Badge :variant="getStatusBadgeVariant(user.is_active)" class="text-sm py-1">
-                        {{ user.is_active ? 'Active' : 'Inactive' }}
-                      </Badge>
+                      <UserRoleBadge
+                        :role="user.role"
+                        size="sm"
+                      />
+                      <UserStatusBadge
+                        :is-active="user.is_active"
+                        size="sm"
+                      />
                       <Badge :variant="user.email_verified_at ? 'default' : 'outline'" class="text-sm py-1">
                         <div class="flex items-center space-x-1">
                           <component 
@@ -461,53 +391,102 @@ const getLocaleDisplay = (locale: string) => {
               </div>
             </div>
 
-            <!-- Permissions Card -->
-            <Card>
+            <!-- Permissions Card - UPDATED: Same card design as Create.vue but non-interactive -->
+            <Card v-if="props.permissionOptions && Object.keys(props.permissionOptions).length > 0">
               <CardHeader>
                 <CardTitle class="flex items-center gap-2">
                   <CheckSquare class="h-5 w-5 text-blue-600" />
                   Module Permissions
+                  <Badge variant="outline" class="ml-2">
+                    {{ enabledPermissionsCount }} enabled
+                  </Badge>
                   <Badge v-if="isSuperAdmin" variant="destructive" class="ml-2">
-                    Super Administrator - Full Access
+                    Super Administrator
                   </Badge>
                 </CardTitle>
                 <CardDescription>
-                  {{ isSuperAdmin ? 'Super administrators have access to all modules and system features.' : 'Modules and pages this user can access' }}
+                  {{ isSuperAdmin ? 'Super administrators have full access to all system features and modules.' : 'Modules and pages this user can access' }}
                 </CardDescription>
               </CardHeader>
-              <CardContent>
-                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+              <CardContent class="space-y-4">
+                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                   <div
-                    v-for="(permission, key) in permissionOptions"
+                    v-for="(permission, key) in props.permissionOptions"
                     :key="key"
-                    class="flex items-center space-x-2 p-3 border rounded-lg transition-all duration-200"
-                    :class="shouldHighlightPermission(key) 
-                      ? 'bg-green-50 border-green-200 shadow-sm' 
-                      : 'bg-muted/30 border-muted'"
+                    class="flex items-start p-4 border-2 rounded-lg transition-all duration-200 select-none cursor-default"
+                    :class="[
+                      hasPermission(key) 
+                        ? 'bg-green-50 border-green-500 dark:bg-green-950/50 dark:border-green-600 shadow-md' 
+                        : 'bg-muted/30 border-muted',
+                      key === 'dashboard' ? 'opacity-80' : ''
+                    ]"
                   >
-                    <div 
-                      class="h-3 w-3 rounded-full flex items-center justify-center transition-colors"
-                      :class="shouldHighlightPermission(key) ? 'bg-green-500' : 'bg-gray-300'"
-                    >
-                      <CheckCircle 
-                        v-if="shouldHighlightPermission(key)"
-                        class="h-2 w-2 text-white" 
-                      />
-                    </div>
                     <div class="flex-1 min-w-0">
-                      <p class="text-sm font-medium" :class="shouldHighlightPermission(key) ? 'text-green-800' : 'text-foreground'">
-                        {{ permission.label }}
-                      </p>
-                      <p class="text-xs mt-1" :class="shouldHighlightPermission(key) ? 'text-green-600' : 'text-muted-foreground'">
+                      <div class="flex items-center justify-between mb-2">
+                        <Label 
+                          class="text-sm font-semibold text-foreground cursor-default"
+                        >
+                          {{ permission.label }}
+                        </Label>
+                        <div 
+                          v-if="hasPermission(key)"
+                          class="flex-shrink-0 w-5 h-5 bg-green-500 rounded-full flex items-center justify-center"
+                        >
+                          <CheckSquare class="h-3 w-3 text-white" />
+                        </div>
+                        <div 
+                          v-else
+                          class="flex-shrink-0 w-5 h-5 border-2 border-muted-foreground/30 rounded"
+                        ></div>
+                      </div>
+                      <p class="text-xs text-muted-foreground">
                         {{ permission.description }}
                       </p>
                     </div>
                   </div>
                 </div>
-                <div v-if="!isSuperAdmin && (!user.permissions || user.permissions.length === 0)" class="text-center py-8 text-muted-foreground">
-                  <CheckSquare class="h-12 w-12 mx-auto mb-2 opacity-50" />
-                  <p>No permissions assigned</p>
+
+                <!-- Permission summary information -->
+                <div class="p-3 bg-blue-50 border border-blue-200 dark:bg-blue-950/30 dark:border-blue-800 rounded-lg">
+                  <div class="flex items-start space-x-2">
+                    <CheckSquare class="h-4 w-4 text-blue-600 dark:text-blue-400 mt-0.5 flex-shrink-0" />
+                    <div class="flex-1">
+                      <p class="text-sm text-blue-800 dark:text-blue-300 font-medium">Permission Summary</p>
+                      <p class="text-xs text-blue-700 dark:text-blue-400 mt-1">
+                        Green cards with checkmarks indicate enabled permissions. 
+                        <span v-if="isSuperAdmin" class="font-semibold">Super administrators have all permissions automatically enabled.</span>
+                        <span v-else class="font-semibold">Dashboard permission is always enabled for all users.</span>
+                      </p>
+                    </div>
+                  </div>
                 </div>
+
+                <!-- Debug information -->
+                <div v-if="enabledPermissionsCount > 0" class="p-3 bg-muted border border-muted-foreground/20 rounded-lg">
+                  <p class="text-sm font-medium">Current Permissions ({{ enabledPermissionsCount }}):</p>
+                  <p class="text-xs text-muted-foreground mt-1">
+                    <span v-if="isSuperAdmin">All permissions (Super Admin)</span>
+                    <span v-else>{{ user.permissions?.join(', ') || 'No permissions' }}</span>
+                  </p>
+                </div>
+              </CardContent>
+            </Card>
+
+            <!-- No Permissions Available Card -->
+            <Card v-if="!props.permissionOptions || Object.keys(props.permissionOptions).length === 0" class="bg-amber-50 border-amber-200 dark:bg-amber-950/30 dark:border-amber-800">
+              <CardHeader>
+                <CardTitle class="flex items-center gap-2 text-amber-900 dark:text-amber-200">
+                  <CheckSquare class="h-5 w-5" />
+                  No Permissions Available
+                </CardTitle>
+                <CardDescription class="text-amber-700 dark:text-amber-300">
+                  Permission options are not configured in the system
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <p class="text-sm text-amber-800 dark:text-amber-300">
+                  Please check your User model configuration to ensure permission options are properly defined.
+                </p>
               </CardContent>
             </Card>
           </div>
@@ -546,9 +525,10 @@ const getLocaleDisplay = (locale: string) => {
                   <div class="flex items-center space-x-2 text-sm">
                     <Shield class="h-4 w-4 text-muted-foreground" />
                     <span class="font-medium text-muted-foreground">Account Status:</span>
-                    <Badge :variant="getStatusBadgeVariant(user.is_active)" class="text-xs">
-                      {{ user.is_active ? 'Active' : 'Inactive' }}
-                    </Badge>
+                    <UserStatusBadge
+                      :is-active="user.is_active"
+                      size="sm"
+                    />
                   </div>
                   <div class="flex items-center space-x-2 text-sm">
                     <User class="h-4 w-4 text-muted-foreground" />
@@ -573,9 +553,10 @@ const getLocaleDisplay = (locale: string) => {
                 <div class="grid gap-3 text-sm">
                   <div class="flex justify-between items-center py-2 border-b">
                     <span class="font-medium text-muted-foreground">Role Level:</span>
-                    <Badge :variant="getRoleBadgeVariant(user.role)" class="text-xs">
-                      {{ user.role }}
-                    </Badge>
+                    <UserRoleBadge
+                      :role="user.role"
+                      size="sm"
+                    />
                   </div>
                   <div class="flex justify-between items-center py-2 border-b">
                     <span class="font-medium text-muted-foreground">Email Status:</span>
@@ -585,9 +566,10 @@ const getLocaleDisplay = (locale: string) => {
                   </div>
                   <div class="flex justify-between items-center py-2 border-b">
                     <span class="font-medium text-muted-foreground">Account Status:</span>
-                    <Badge :variant="getStatusBadgeVariant(user.is_active)" class="text-xs">
-                      {{ user.is_active ? 'Active' : 'Inactive' }}
-                    </Badge>
+                    <UserStatusBadge
+                      :is-active="user.is_active"
+                      size="sm"
+                    />
                   </div>
                   <div class="flex justify-between items-center py-2">
                     <span class="font-medium text-muted-foreground">2FA Status:</span>

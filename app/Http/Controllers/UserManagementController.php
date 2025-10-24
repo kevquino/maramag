@@ -271,7 +271,7 @@ class UserManagementController extends Controller
             'position' => 'nullable|string|max:255',
             'role' => ['required', 'string', Rule::in(array_keys(User::getRoles()))],
             'office' => ['required', 'string', Rule::in(array_keys(User::getOffices()))],
-            'is_active' => 'boolean',
+            'is_active' => 'required|boolean',
             'password' => 'nullable|string|min:8|confirmed',
             'permissions' => 'array',
             'permissions.*' => ['string', Rule::in(array_keys(User::getAvailablePermissions()))],
@@ -285,7 +285,7 @@ class UserManagementController extends Controller
             'position' => $validated['position'] ?? $user->position,
             'role' => $validated['role'],
             'office' => $validated['office'],
-            'is_active' => $validated['is_active'] ?? $user->is_active,
+            'is_active' => $validated['is_active'],
         ];
 
         // Update avatar if provided
@@ -327,7 +327,8 @@ class UserManagementController extends Controller
             ]
         ]);
 
-        return redirect()->route('user-management.index')
+        // Redirect to show page instead of index
+        return redirect()->route('user-management.show', $user->id)
             ->with('success', 'User updated successfully.');
     }
 
