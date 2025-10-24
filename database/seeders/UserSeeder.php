@@ -5,11 +5,14 @@ namespace Database\Seeders;
 use App\Models\User;
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Facades\Hash;
+use Faker\Factory as Faker;
 
 class UserSeeder extends Seeder
 {
     public function run(): void
     {
+        $faker = Faker::create();
+
         // Create Super Administrator
         User::create([
             'name' => 'System Administrator',
@@ -369,5 +372,53 @@ class UserSeeder extends Seeder
             'email_verified_at' => now()->subMonths(6),
             'password' => Hash::make('password123'),
         ]);
+
+        // Generate 100 random user accounts with "Other" office
+        $positions = [
+            'Administrative Aide',
+            'Administrative Assistant',
+            'Administrative Officer',
+            'Clerk',
+            'Records Officer',
+            'Planning Assistant',
+            'Information Officer',
+            'Tourism Assistant',
+            'Permit Processor',
+            'Legislative Assistant',
+            'Executive Assistant',
+            'Technical Assistant',
+            'Project Development Officer',
+            'Social Welfare Assistant',
+            'Health Officer',
+            'Engineering Assistant',
+            'Agricultural Technologist',
+            'Environmental Management Specialist',
+            'Accountant',
+            'Budget Officer'
+        ];
+
+        for ($i = 1; $i <= 100; $i++) {
+            $firstName = $faker->firstName;
+            $lastName = $faker->lastName;
+            
+            User::create([
+                'name' => $firstName . ' ' . $lastName,
+                'email' => strtolower($firstName . '.' . $lastName . $i . '@municipality.gov'),
+                'phone' => '+639' . $faker->numberBetween(100000000, 999999999),
+                'position' => $faker->randomElement($positions),
+                'role' => 'user',
+                'office' => 'Other', // All random users have "Other" as office
+                'is_active' => $faker->boolean(90), // 90% chance of being active
+                'avatar' => null,
+                'last_login_at' => $faker->optional(0.7)->dateTimeBetween('-6 months', 'now'), // 70% chance of having login history
+                'last_login_ip' => $faker->optional(0.7)->ipv4,
+                'login_count' => $faker->numberBetween(0, 100),
+                'permissions' => json_encode(['dashboard']), // Basic dashboard permission for regular users
+                'timezone' => 'Asia/Manila',
+                'locale' => 'en',
+                'email_verified_at' => $faker->optional(0.9)->dateTimeBetween('-1 year', 'now'), // 90% chance of verified email
+                'password' => Hash::make('password123'),
+            ]);
+        }
     }
 }

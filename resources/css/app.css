@@ -168,6 +168,62 @@
     }
 }
 
+/* ===== ENHANCED CUSTOM SCROLLBAR STYLES ===== */
+/* Global scrollbar styles for webkit browsers */
+::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+}
+
+::-webkit-scrollbar-track {
+    background: transparent;
+    border-radius: 10px;
+}
+
+::-webkit-scrollbar-thumb {
+    background: linear-gradient(135deg, rgba(2, 167, 38, 0.7), rgba(56, 189, 248, 0.7));
+    border-radius: 10px;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    transition: all 0.3s ease;
+}
+
+::-webkit-scrollbar-thumb:hover {
+    background: linear-gradient(135deg, rgba(2, 167, 38, 0.9), rgba(56, 189, 248, 0.9));
+    transform: scale(1.1);
+}
+
+::-webkit-scrollbar-thumb:active {
+    background: linear-gradient(135deg, rgba(2, 167, 38, 1), rgba(56, 189, 248, 1));
+}
+
+::-webkit-scrollbar-corner {
+    background: transparent;
+}
+
+/* Firefox scrollbar styles */
+* {
+    scrollbar-width: thin;
+    scrollbar-color: rgba(2, 167, 38, 0.7) transparent;
+}
+
+/* Dark mode scrollbar styles */
+.dark ::-webkit-scrollbar-thumb {
+    background: linear-gradient(135deg, rgba(55, 240, 9, 0.7), rgba(96, 165, 250, 0.7));
+    border: 1px solid rgba(0, 0, 0, 0.2);
+}
+
+.dark ::-webkit-scrollbar-thumb:hover {
+    background: linear-gradient(135deg, rgba(55, 240, 9, 0.9), rgba(96, 165, 250, 0.9));
+}
+
+.dark ::-webkit-scrollbar-thumb:active {
+    background: linear-gradient(135deg, rgba(55, 240, 9, 1), rgba(96, 165, 250, 1));
+}
+
+.dark * {
+    scrollbar-color: rgba(55, 240, 9, 0.7) transparent;
+}
+
 /* ===== SIDEBAR SCROLLING STYLES ===== */
 /* Ensure proper height and scrolling behavior for sidebar */
 [data-sidebar="sidebar"] {
@@ -183,10 +239,10 @@
     flex-direction: column;
 }
 
-/* Ensure the scrollable area works properly */
+/* Enhanced sidebar scrollbar */
 .sidebar-scrollable {
     scrollbar-width: thin;
-    scrollbar-color: rgba(156, 163, 175, 0.5) transparent;
+    scrollbar-color: rgba(2, 167, 38, 0.5) transparent;
 }
 
 .sidebar-scrollable::-webkit-scrollbar {
@@ -195,28 +251,30 @@
 
 .sidebar-scrollable::-webkit-scrollbar-track {
     background: transparent;
+    border-radius: 10px;
 }
 
 .sidebar-scrollable::-webkit-scrollbar-thumb {
-    background-color: rgba(156, 163, 175, 0.5);
-    border-radius: 3px;
+    background: linear-gradient(135deg, rgba(2, 167, 38, 0.6), rgba(56, 189, 248, 0.6));
+    border-radius: 10px;
+    border: 1px solid rgba(255, 255, 255, 0.1);
 }
 
 .sidebar-scrollable::-webkit-scrollbar-thumb:hover {
-    background-color: rgba(156, 163, 175, 0.7);
+    background: linear-gradient(135deg, rgba(2, 167, 38, 0.8), rgba(56, 189, 248, 0.8));
 }
 
-/* Dark mode scrollbar styles */
+/* Dark mode sidebar scrollbar */
 .dark .sidebar-scrollable {
-    scrollbar-color: rgba(75, 85, 99, 0.5) transparent;
+    scrollbar-color: rgba(55, 240, 9, 0.5) transparent;
 }
 
 .dark .sidebar-scrollable::-webkit-scrollbar-thumb {
-    background-color: rgba(75, 85, 99, 0.5);
+    background: linear-gradient(135deg, rgba(55, 240, 9, 0.6), rgba(96, 165, 250, 0.6));
 }
 
 .dark .sidebar-scrollable::-webkit-scrollbar-thumb:hover {
-    background-color: rgba(75, 85, 99, 0.7);
+    background: linear-gradient(135deg, rgba(55, 240, 9, 0.8), rgba(96, 165, 250, 0.8));
 }
 
 /* ===== EXISTING SIDEBAR STYLES ===== */
@@ -449,7 +507,37 @@ html:not(.dark) [data-sidebar="sidebar"] [data-sidebar-menu-button][data-active]
     overflow-y: hidden;
     -webkit-overflow-scrolling: touch;
     scrollbar-width: thin;
-    scrollbar-color: hsl(var(--muted-foreground) / 0.3) transparent;
+    scrollbar-color: rgba(2, 167, 38, 0.3) transparent;
+}
+
+/* Enhanced table scrollbar */
+.responsive-table-container::-webkit-scrollbar {
+    height: 8px;
+}
+
+.responsive-table-container::-webkit-scrollbar-track {
+    background: transparent;
+    border-radius: 10px;
+}
+
+.responsive-table-container::-webkit-scrollbar-thumb {
+    background: linear-gradient(135deg, rgba(2, 167, 38, 0.6), rgba(56, 189, 248, 0.6));
+    border-radius: 10px;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.responsive-table-container::-webkit-scrollbar-thumb:hover {
+    background: linear-gradient(135deg, rgba(2, 167, 38, 0.8), rgba(56, 189, 248, 0.8));
+    transform: scale(1.05);
+}
+
+/* Dark mode table scrollbar */
+.dark .responsive-table-container::-webkit-scrollbar-thumb {
+    background: linear-gradient(135deg, rgba(55, 240, 9, 0.6), rgba(96, 165, 250, 0.6));
+}
+
+.dark .responsive-table-container::-webkit-scrollbar-thumb:hover {
+    background: linear-gradient(135deg, rgba(55, 240, 9, 0.8), rgba(96, 165, 250, 0.8));
 }
 
 /* Mobile-optimized table cells */
@@ -462,6 +550,45 @@ html:not(.dark) [data-sidebar="sidebar"] [data-sidebar-menu-button][data-active]
 .card-view-container {
     max-height: 600px;
     overflow-y: auto;
+}
+
+/* Enhanced card view scrollbar */
+.card-view-container::-webkit-scrollbar {
+    width: 8px;
+}
+
+.card-view-container::-webkit-scrollbar-track {
+    background: transparent;
+    border-radius: 10px;
+}
+
+.card-view-container::-webkit-scrollbar-thumb {
+    background: linear-gradient(135deg, rgba(2, 167, 38, 0.7), rgba(56, 189, 248, 0.7));
+    border-radius: 10px;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    transition: all 0.3s ease;
+}
+
+.card-view-container::-webkit-scrollbar-thumb:hover {
+    background: linear-gradient(135deg, rgba(2, 167, 38, 0.9), rgba(56, 189, 248, 0.9));
+    transform: scale(1.1);
+}
+
+.card-view-container::-webkit-scrollbar-thumb:active {
+    background: linear-gradient(135deg, rgba(2, 167, 38, 1), rgba(56, 189, 248, 1));
+}
+
+/* Dark mode card scrollbar */
+.dark .card-view-container::-webkit-scrollbar-thumb {
+    background: linear-gradient(135deg, rgba(55, 240, 9, 0.7), rgba(96, 165, 250, 0.7));
+}
+
+.dark .card-view-container::-webkit-scrollbar-thumb:hover {
+    background: linear-gradient(135deg, rgba(55, 240, 9, 0.9), rgba(96, 165, 250, 0.9));
+}
+
+.dark .card-view-container::-webkit-scrollbar-thumb:active {
+    background: linear-gradient(135deg, rgba(55, 240, 9, 1), rgba(96, 165, 250, 1));
 }
 
 /* Enhanced card hover effects */
@@ -506,63 +633,6 @@ html:not(.dark) [data-sidebar="sidebar"] [data-sidebar-menu-button][data-active]
 .table-row-leave-to {
     opacity: 0;
     transform: translateY(-10px);
-}
-
-/* Custom scrollbar for table container */
-.responsive-table-container::-webkit-scrollbar {
-    height: 6px;
-    width: 6px;
-}
-
-.responsive-table-container::-webkit-scrollbar-track {
-    background: transparent;
-    border-radius: 3px;
-}
-
-.responsive-table-container::-webkit-scrollbar-thumb {
-    background: hsl(var(--muted-foreground) / 0.3);
-    border-radius: 3px;
-}
-
-.responsive-table-container::-webkit-scrollbar-thumb:hover {
-    background: hsl(var(--muted-foreground) / 0.5);
-}
-
-/* Dark mode scrollbar */
-.dark .responsive-table-container::-webkit-scrollbar-thumb {
-    background: rgba(156, 163, 175, 0.3);
-}
-
-.dark .responsive-table-container::-webkit-scrollbar-thumb:hover {
-    background: rgba(156, 163, 175, 0.5);
-}
-
-/* Custom scrollbar for card view */
-.card-view-container::-webkit-scrollbar {
-    width: 6px;
-}
-
-.card-view-container::-webkit-scrollbar-track {
-    background: transparent;
-    border-radius: 3px;
-}
-
-.card-view-container::-webkit-scrollbar-thumb {
-    background: rgba(2, 167, 38, 0.623);
-    border-radius: 3px;
-}
-
-.card-view-container::-webkit-scrollbar-thumb:hover {
-    background: hsl(var(--muted-foreground) / 0.4);
-}
-
-/* Dark mode card scrollbar */
-.dark .card-view-container::-webkit-scrollbar-thumb {
-    background: rgba(55, 240, 9, 0.623);
-}
-
-.dark .card-view-container::-webkit-scrollbar-thumb:hover {
-    background: rgba(255, 255, 255, 0.4);
 }
 
 /* Data table search styles */
@@ -837,4 +907,34 @@ html:not(.dark) [data-sidebar="sidebar"] [data-sidebar-menu-button][data-active]
 
 .dark .action-button:hover {
     border-color: hsl(217.2, 25%, 40%) !important;
+}
+
+/* ===== SMOOTH SCROLLING ENHANCEMENTS ===== */
+html {
+    scroll-behavior: smooth;
+}
+
+/* Hide scrollbar for elements that don't need it */
+.no-scrollbar::-webkit-scrollbar {
+    display: none;
+}
+
+.no-scrollbar {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+}
+
+/* Thin scrollbar variant for compact spaces */
+.scrollbar-thin::-webkit-scrollbar {
+    width: 4px;
+    height: 4px;
+}
+
+.scrollbar-thin::-webkit-scrollbar-thumb {
+    background: rgba(2, 167, 38, 0.5);
+    border-radius: 2px;
+}
+
+.dark .scrollbar-thin::-webkit-scrollbar-thumb {
+    background: rgba(55, 240, 9, 0.5);
 }

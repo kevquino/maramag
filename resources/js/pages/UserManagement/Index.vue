@@ -700,7 +700,6 @@ onMounted(() => {
         <div class="grid grid-cols-1 md:grid-cols-5 gap-4">
           <!-- Search -->
           <div>
-            <label class="block text-sm font-medium text-foreground mb-2">Search</label>
             <div class="relative">
               <Input
                 v-model="searchQuery"
@@ -718,7 +717,6 @@ onMounted(() => {
 
           <!-- Role Filter Dropdown -->
           <div>
-            <label class="block text-sm font-medium text-foreground mb-2">Role</label>
             <DropdownMenu>
               <DropdownMenuTrigger as-child>
                 <Button variant="outline" class="w-full justify-between" :disabled="loading">
@@ -754,7 +752,6 @@ onMounted(() => {
 
           <!-- Office Filter Dropdown -->
           <div>
-            <label class="block text-sm font-medium text-foreground mb-2">Office</label>
             <DropdownMenu>
               <DropdownMenuTrigger as-child>
                 <Button variant="outline" class="w-full justify-between" :disabled="loading">
@@ -790,7 +787,6 @@ onMounted(() => {
 
           <!-- Status Filter Dropdown -->
           <div>
-            <label class="block text-sm font-medium text-foreground mb-2">Status</label>
             <DropdownMenu>
               <DropdownMenuTrigger as-child>
                 <Button variant="outline" class="w-full justify-between" :disabled="loading">
